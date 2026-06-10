@@ -248,8 +248,16 @@
     .vote-pct.home-pct { background: rgba(59,130,246,0.15); color: var(--blue); }
     .vote-pct.draw-pct { background: rgba(100,116,139,0.15); color: var(--muted); }
     .vote-pct.away-pct { background: rgba(239,68,68,0.15); color: var(--red); }
-    .winrate-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 4px; gap: 1px; }
-    .winrate-seg { height: 100%; transition: width .3s; }
+    .winrate-wrap { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+    .winrate-labels { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 10px; }
+    .winrate-label { display: flex; align-items: center; gap: 3px; }
+    .winrate-label .wl-team { color: var(--subtext); font-weight: 600; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .winrate-label .wl-pct { font-weight: 700; font-size: 11px; }
+    .winrate-label.wl-home .wl-pct { color: var(--blue); }
+    .winrate-label.wl-draw .wl-pct { color: var(--muted); }
+    .winrate-label.wl-away .wl-pct { color: var(--red); }
+    .winrate-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 1px; }
+    .winrate-seg { height: 100%; transition: width .4s ease; min-width: 2px; }
     .winrate-seg.home-seg { background: var(--blue); }
     .winrate-seg.draw-seg { background: var(--muted); }
     .winrate-seg.away-seg { background: var(--red); }
@@ -390,10 +398,9 @@
 <footer>
   ⚽ FIFA World Cup 2026™ · All times in <strong>Malaysia Time (MYT / UTC+8)</strong> · Live scores via football-data.org
   <div style="margin-top:12px">
-    <button onclick="toggleAdmin()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 10px;font-size:10px;cursor:pointer;font-family:'Inter',sans-serif">⚙ Admin</button>
     <div id="admin-panel" style="display:none;margin-top:8px;background:var(--card);border:1px solid var(--red);border-radius:8px;padding:12px;max-width:400px;margin-left:auto;margin-right:auto">
       <div style="font-size:12px;color:var(--red);font-weight:600;margin-bottom:8px">⚠ Reset All Data</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">This will delete all match votes, champion votes, and comments from Firebase. Cannot be undone.</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">This will delete all match votes, champion votes, and comments. Cannot be undone.</div>
       <button onclick="resetAllData()" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 Reset Everything</button>
     </div>
   </div>
@@ -1204,14 +1211,19 @@ async function renderVoteResult(key, matchNo, home, away) {
   const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 33;
   const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 34;
   const ap = total > 0 ? 100 - hp - dp : 33;
+  const voteText = total > 0 ? `(${total} vote${total!==1?'s':''})` : '';
   el.innerHTML = `
-    <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
-    <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
-    <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-    <div class="winrate-bar">
-      <div class="winrate-seg home-seg" style="width:${hp}%"></div>
-      <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
-      <div class="winrate-seg away-seg" style="width:${ap}%"></div>
+    <div class="winrate-wrap">
+      <div class="winrate-labels">
+        <span class="winrate-label wl-home"><span class="wl-pct">${total > 0 ? hp+'%' : '—'}</span> <span class="wl-team">${home}</span></span>
+        <span class="winrate-label wl-draw" style="font-size:9px;color:var(--muted)">${voteText || 'No votes yet'}</span>
+        <span class="winrate-label wl-away"><span class="wl-team">${away}</span> <span class="wl-pct">${total > 0 ? ap+'%' : '—'}</span></span>
+      </div>
+      <div class="winrate-bar">
+        <div class="winrate-seg home-seg" style="width:${hp}%"></div>
+        <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
+        <div class="winrate-seg away-seg" style="width:${ap}%"></div>
+      </div>
     </div>`;
 }
 
@@ -1230,14 +1242,19 @@ async function loadAllVoteResults() {
       const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 33;
       const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 34;
       const ap = total > 0 ? 100 - hp - dp : 33;
+      const voteText = total > 0 ? `(${total} vote${total!==1?'s':''})` : '';
       el.innerHTML = `
-        <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
-        <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
-        <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-        <div class="winrate-bar">
-          <div class="winrate-seg home-seg" style="width:${hp}%"></div>
-          <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
-          <div class="winrate-seg away-seg" style="width:${ap}%"></div>
+        <div class="winrate-wrap">
+          <div class="winrate-labels">
+            <span class="winrate-label wl-home"><span class="wl-pct">${total > 0 ? hp+'%' : '—'}</span> <span class="wl-team">${m[2]}</span></span>
+            <span class="winrate-label wl-draw" style="font-size:9px;color:var(--muted)">${voteText || 'No votes yet'}</span>
+            <span class="winrate-label wl-away"><span class="wl-team">${m[3]}</span> <span class="wl-pct">${total > 0 ? ap+'%' : '—'}</span></span>
+          </div>
+          <div class="winrate-bar">
+            <div class="winrate-seg home-seg" style="width:${hp}%"></div>
+            <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
+            <div class="winrate-seg away-seg" style="width:${ap}%"></div>
+          </div>
         </div>`;
     }
   } catch(e) { console.error('Vote load error:', e); }
@@ -1566,12 +1583,20 @@ document.addEventListener('click', function reqPerm() {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ADMIN RESET
+// ADMIN RESET (hidden — click footer 5x to reveal)
 // ═══════════════════════════════════════════════════════════════════════════════
-function toggleAdmin() {
-  const panel = document.getElementById('admin-panel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-}
+let footerClicks = 0;
+let footerTimer = null;
+document.querySelector('footer').addEventListener('click', function() {
+  footerClicks++;
+  clearTimeout(footerTimer);
+  footerTimer = setTimeout(() => { footerClicks = 0; }, 2000);
+  if (footerClicks >= 5) {
+    footerClicks = 0;
+    const panel = document.getElementById('admin-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  }
+});
 
 async function resetAllData() {
   if (!confirm('⚠ Are you sure?\n\nThis will delete ALL:\n• Match votes\n• Champion votes\n• Comments\n\nThis cannot be undone!')) return;
