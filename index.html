@@ -277,10 +277,10 @@
     .champ-inner { background: var(--card); border: 1px solid var(--gold); border-radius: var(--radius); padding: 16px; }
     .champ-title { font-family: 'Oswald', sans-serif; font-size: 18px; color: var(--gold); margin-bottom: 12px; }
     .champ-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
-    .champ-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 12px; color: var(--text); cursor: pointer; text-align: center; font-family: 'Inter', sans-serif; transition: all .2s; }
+    .champ-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 12px; color: var(--text); cursor: pointer; text-align: center; font-family: 'Inter', sans-serif; transition: all .2s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
     .champ-btn:hover { border-color: var(--gold); }
     .champ-btn.voted { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 600; }
-    .champ-btn img { border-radius: 2px; margin-bottom: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+    .champ-btn img { border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
     .champ-btn .ch-count { font-size: 10px; color: var(--muted); }
     .champ-btn.voted .ch-count { color: #000; }
     .champ-rank { margin-top: 12px; }
@@ -1175,7 +1175,28 @@ let votedMatches = JSON.parse(localStorage.getItem('wc26_votes') || '{}');
 
 async function voteMatch(key, choice, matchNo, home, away) {
   const oldChoice = votedMatches[key];
-  if (oldChoice === choice) { showToast('Already picked this'); return; }
+
+  // Deselect if clicking the same vote
+  if (oldChoice === choice) {
+    delete votedMatches[key];
+    localStorage.setItem('wc26_votes', JSON.stringify(votedMatches));
+
+    const ref = db.collection('match_votes').doc(key);
+    const snap = await ref.get();
+    if (snap.exists) {
+      await ref.update({ ['votes_' + choice]: firebase.firestore.FieldValue.increment(-1) });
+    }
+
+    showToast('Vote removed');
+    trackEvent('match_vote', { match_key: key, choice: choice, action: 'deselect' });
+    // Update button state only — onSnapshot handles the bar updates
+    const bar = document.getElementById('vote-' + matchNo);
+    if (bar) {
+      bar.querySelectorAll('.vote-btn').forEach(btn => btn.classList.remove('voted'));
+    }
+    return;
+  }
+
   votedMatches[key] = choice;
   localStorage.setItem('wc26_votes', JSON.stringify(votedMatches));
 
@@ -1214,18 +1235,18 @@ async function renderVoteResult(key, matchNo, home, away) {
   let d = { votes_home: 0, votes_draw: 0, votes_away: 0 };
   if (snap.exists) d = snap.data();
   const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
-  const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 33;
-  const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 34;
-  const ap = total > 0 ? 100 - hp - dp : 33;
+  const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
+  const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
+  const ap = total > 0 ? 100 - hp - dp : 0;
   el.innerHTML = `
     <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
     <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
     <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-    <div class="winrate-bar">
+    ${total > 0 ? `<div class="winrate-bar">
       <div class="winrate-seg home-seg" style="width:${hp}%"></div>
       <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
       <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-    </div>`;
+    </div>` : ''}`;
 }
 
 async function loadAllVoteResults() {
@@ -1240,18 +1261,18 @@ async function loadAllVoteResults() {
       if (!el) continue;
       const d = votesMap[k] || { votes_home: 0, votes_draw: 0, votes_away: 0 };
       const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
-      const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 33;
-      const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 34;
-      const ap = total > 0 ? 100 - hp - dp : 33;
+      const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
+      const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
+      const ap = total > 0 ? 100 - hp - dp : 0;
       el.innerHTML = `
         <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
         <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
         <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-        <div class="winrate-bar">
+        ${total > 0 ? `<div class="winrate-bar">
           <div class="winrate-seg home-seg" style="width:${hp}%"></div>
           <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
           <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-        </div>`;
+        </div>` : ''}`;
     }
   } catch(e) { console.error('Vote load error:', e); }
 }
@@ -1422,7 +1443,7 @@ async function renderChampionSection() {
     const isVoted = votedChampion === team;
     return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${team}')">
       ${getFlagImg(team, 32)}
-      ${team}
+      <span class="ch-name">${team}</span>
       <span class="ch-count">${c} vote${c!==1?'s':''}</span>
     </button>`;
   }).join('');
@@ -1600,18 +1621,19 @@ db.collection('match_votes').onSnapshot(snap => {
     if (!el) continue;
     const d = votesMap[k] || { votes_home: 0, votes_draw: 0, votes_away: 0 };
     const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
-    const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 33;
-    const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 34;
-    const ap = total > 0 ? 100 - hp - dp : 33;
+    const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
+    const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
+    const ap = total > 0 ? 100 - hp - dp : 0;
     el.innerHTML = `
       <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
       <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
       <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-      <div class="winrate-bar">
+      ${total > 0 ? `<div class="winrate-bar">
         <div class="winrate-seg home-seg" style="width:${hp}%"></div>
         <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
         <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-      </div>`;
+      </div>` : ''}
+    `;
   }
 });
 
@@ -1636,7 +1658,7 @@ db.collection('champion_votes').onSnapshot(snap => {
     const isVoted = votedChampion === team;
     return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${team}')">
       ${getFlagImg(team, 32)}
-      ${team}
+      <span class="ch-name">${team}</span>
       <span class="ch-count">${c} vote${c!==1?'s':''}</span>
     </button>`;
   }).join('');
