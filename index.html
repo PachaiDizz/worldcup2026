@@ -277,11 +277,13 @@
     .champ-inner { background: var(--card); border: 1px solid var(--gold); border-radius: var(--radius); padding: 16px; }
     .champ-title { font-family: 'Oswald', sans-serif; font-size: 18px; color: var(--gold); margin-bottom: 12px; }
     .champ-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
-    .champ-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 12px; color: var(--text); cursor: pointer; text-align: center; font-family: 'Inter', sans-serif; transition: all .2s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+    .champ-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 6px; font-size: 12px; color: var(--text); cursor: pointer; text-align: center; font-family: 'Inter', sans-serif; transition: all .2s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
     .champ-btn:hover { border-color: var(--gold); }
     .champ-btn.voted { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 600; }
-    .champ-btn img { border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
-    .champ-btn .ch-count { font-size: 10px; color: var(--muted); }
+    .champ-btn .ch-flag { line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .champ-btn .ch-flag img { border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.3); display: block; }
+    .champ-btn .ch-name { line-height: 1.2; }
+    .champ-btn .ch-count { font-size: 10px; color: var(--muted); line-height: 1; }
     .champ-btn.voted .ch-count { color: #000; }
     .champ-rank { margin-top: 12px; }
     .champ-rank-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; }
@@ -1442,7 +1444,7 @@ async function renderChampionSection() {
     const c = counts[team] || 0;
     const isVoted = votedChampion === team;
     return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${team}')">
-      ${getFlagImg(team, 32)}
+      <span class="ch-flag">${getFlagImg(team, 22)}</span>
       <span class="ch-name">${team}</span>
       <span class="ch-count">${c} vote${c!==1?'s':''}</span>
     </button>`;
@@ -1657,7 +1659,7 @@ db.collection('champion_votes').onSnapshot(snap => {
     const c = counts[team] || 0;
     const isVoted = votedChampion === team;
     return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${team}')">
-      ${getFlagImg(team, 32)}
+      <span class="ch-flag">${getFlagImg(team, 22)}</span>
       <span class="ch-name">${team}</span>
       <span class="ch-count">${c} vote${c!==1?'s':''}</span>
     </button>`;
