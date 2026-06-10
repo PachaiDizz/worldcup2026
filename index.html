@@ -697,11 +697,11 @@ function shareWhatsApp(home, away, utcISO, venue) {
 function downloadReminderICS(home, away, utcISO) {
   const dt = new Date(utcISO);
   const pad2 = n => String(n).padStart(2, '0');
-  const dtStart = dt.getUTCFullYear() + pad2(dt.getUTCMonth()+1) + pad2(dt.getUTCDate()) + 'T' + pad2(dt.getUTCHours()) + pad2(dt.getUTCMinutes()) + pad2(dt.getUTCSeconds());
+  const dtStart = dt.getUTCFullYear() + pad2(dt.getUTCMonth()+1) + pad2(dt.getUTCDate()) + 'T' + pad2(dt.getUTCHours()) + pad2(dt.getUTCMinutes()) + pad2(dt.getUTCSeconds()) + 'Z';
   const dtEnd = new Date(dt.getTime() + 2*3600000);
-  const dtEndStr = dtEnd.getUTCFullYear() + pad2(dtEnd.getUTCMonth()+1) + pad2(dtEnd.getUTCDate()) + 'T' + pad2(dtEnd.getUTCHours()) + pad2(dtEnd.getUTCMinutes()) + pad2(dtEnd.getUTCSeconds());
+  const dtEndStr = dtEnd.getUTCFullYear() + pad2(dtEnd.getUTCMonth()+1) + pad2(dtEnd.getUTCDate()) + 'T' + pad2(dtEnd.getUTCHours()) + pad2(dtEnd.getUTCMinutes()) + pad2(dtEnd.getUTCSeconds()) + 'Z';
   const now = new Date();
-  const dtStamp = now.getUTCFullYear() + pad2(now.getUTCMonth()+1) + pad2(now.getUTCDate()) + 'T' + pad2(now.getUTCHours()) + pad2(now.getUTCMinutes()) + pad2(now.getUTCSeconds());
+  const dtStamp = now.getUTCFullYear() + pad2(now.getUTCMonth()+1) + pad2(now.getUTCDate()) + 'T' + pad2(now.getUTCHours()) + pad2(now.getUTCMinutes()) + pad2(now.getUTCSeconds()) + 'Z';
 
   const ics = [
     'BEGIN:VCALENDAR',
