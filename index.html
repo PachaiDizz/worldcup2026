@@ -1177,6 +1177,28 @@ document.getElementById('search-input').addEventListener('input', e => {
 // ═══════════════════════════════════════════════════════════════════════════════
 let votedMatches = JSON.parse(localStorage.getItem('wc26_votes') || '{}');
 
+async function refreshVoteResult(key, matchNo) {
+  const el = document.getElementById('vres-' + matchNo);
+  if (!el) return;
+  try {
+    const snap = await db.collection('match_votes').doc(key).get();
+    const d = snap.exists ? snap.data() : { votes_home: 0, votes_draw: 0, votes_away: 0 };
+    const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
+    const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
+    const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
+    const ap = total > 0 ? 100 - hp - dp : 0;
+    el.innerHTML = `
+      <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
+      <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
+      <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
+      ${total > 0 ? `<div class="winrate-bar">
+        <div class="winrate-seg home-seg" style="width:${hp}%"></div>
+        <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
+        <div class="winrate-seg away-seg" style="width:${ap}%"></div>
+      </div>` : ''}`;
+  } catch(e) { console.error('Vote refresh error:', e); }
+}
+
 async function voteMatch(key, choice, matchNo, home, away) {
   const oldChoice = votedMatches[key];
 
@@ -1193,11 +1215,13 @@ async function voteMatch(key, choice, matchNo, home, away) {
 
     showToast('Vote removed');
     trackEvent('match_vote', { match_key: key, choice: choice, action: 'deselect' });
-    // Update button state only — onSnapshot handles the bar updates
+    // Update button state
     const bar = document.getElementById('vote-' + matchNo);
     if (bar) {
       bar.querySelectorAll('.vote-btn').forEach(btn => btn.classList.remove('voted'));
     }
+    // Force refresh the winrate display immediately
+    refreshVoteResult(key, matchNo);
     return;
   }
 
