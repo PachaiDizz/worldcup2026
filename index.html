@@ -228,6 +228,12 @@
     .comment-meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
     .comment-meta strong { color: var(--gold); }
     .comment-text { font-size: 13px; color: var(--text); word-break: break-word; }
+    .comment-reply-btn { background: none; border: none; color: var(--blue); font-size: 11px; cursor: pointer; font-family: 'Inter', sans-serif; margin-top: 4px; padding: 0; }
+    .comment-reply-btn:hover { color: var(--gold); }
+    .comment-replies { margin-top: 8px; padding-left: 16px; border-left: 2px solid var(--border); }
+    .comment-replies .comment-item { background: var(--surface); margin-bottom: 6px; padding: 10px 12px; }
+    .reply-indicator { background: var(--surface); border: 1px solid var(--blue); border-radius: 6px; padding: 6px 12px; margin-bottom: 8px; font-size: 12px; color: var(--subtext); display: flex; align-items: center; gap: 8px; }
+    .reply-indicator .cancel-reply { background: none; border: none; color: var(--red); cursor: pointer; font-size: 14px; font-family: 'Inter', sans-serif; }
     .comments-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 20px; font-style: italic; }
 
     /* ── VOTES ── */
@@ -361,6 +367,10 @@
     <span class="comments-title">Match Day Comments</span>
   </div>
   <div class="comment-form">
+    <div class="reply-indicator" id="reply-indicator" style="display:none">
+      <span>↩ Replying to <strong id="reply-to-name"></strong></span>
+      <button class="cancel-reply" onclick="cancelReply()">✕</button>
+    </div>
     <input id="comment-name" type="text" placeholder="Your name" maxlength="30" />
     <textarea id="comment-text" placeholder="Leave a comment..." maxlength="300"></textarea>
     <button class="btn-submit" onclick="submitComment()">Send</button>
@@ -1318,6 +1328,20 @@ async function renderChampionSection() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMMENTS (Firebase)
 // ═══════════════════════════════════════════════════════════════════════════════
+let replyTo = null;  // { id, name }
+
+function startReply(commentId, commentName) {
+  replyTo = { id: commentId, name: commentName };
+  document.getElementById('reply-indicator').style.display = 'flex';
+  document.getElementById('reply-to-name').textContent = commentName;
+  document.getElementById('comment-text').focus();
+}
+
+function cancelReply() {
+  replyTo = null;
+  document.getElementById('reply-indicator').style.display = 'none';
+}
+
 async function submitComment() {
   const name = document.getElementById('comment-name').value.trim();
   const text = document.getElementById('comment-text').value.trim();
@@ -1328,16 +1352,20 @@ async function submitComment() {
   btn.disabled = true;
   btn.textContent = 'Sending...';
 
-  await db.collection('comments').add({
+  const data = {
     name: name,
     text: text,
-    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-  });
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    parentId: replyTo ? replyTo.id : null
+  };
+
+  await db.collection('comments').add(data);
 
   document.getElementById('comment-text').value = '';
+  cancelReply();
   btn.disabled = false;
   btn.textContent = 'Send';
-  showToast('Comment posted!');
+  showToast(replyTo ? 'Reply posted!' : 'Comment posted!');
   loadComments();
 }
 
@@ -1345,24 +1373,55 @@ async function loadComments() {
   const list = document.getElementById('comments-list');
   if (!list) return;
   try {
-    const snap = await db.collection('comments').orderBy('timestamp', 'desc').limit(50).get();
+    const snap = await db.collection('comments').orderBy('timestamp', 'desc').limit(100).get();
     if (snap.empty) { list.innerHTML = '<div class="comments-empty">No comments yet. Be the first!</div>'; return; }
-    list.innerHTML = '';
+
+    const all = [];
     snap.forEach(doc => {
       const d = doc.data();
-      const ts = d.timestamp ? new Date(d.timestamp.seconds * 1000) : new Date();
-      const timeStr = ts.toLocaleDateString('en-MY', { day:'numeric', month:'short', year:'numeric' }) + ' ' +
-                       ts.toLocaleTimeString('en-MY', { hour:'2-digit', minute:'2-digit', hour12:true });
-      const div = document.createElement('div');
-      div.className = 'comment-item';
-      div.innerHTML = `
-        <div class="comment-meta"><strong>${escapeHTML(d.name)}</strong> · ${timeStr}</div>
-        <div class="comment-text">${escapeHTML(d.text)}</div>`;
-      list.appendChild(div);
+      all.push({ id: doc.id, ...d });
+    });
+
+    const topLevel = all.filter(c => !c.parentId);
+    const repliesMap = {};
+    all.filter(c => c.parentId).forEach(r => {
+      if (!repliesMap[r.parentId]) repliesMap[r.parentId] = [];
+      repliesMap[r.parentId].push(r);
+    });
+
+    list.innerHTML = '';
+    topLevel.forEach(c => {
+      list.appendChild(buildCommentEl(c, repliesMap));
     });
   } catch (e) {
     list.innerHTML = '<div class="comments-empty">Could not load comments</div>';
   }
+}
+
+function buildCommentEl(c, repliesMap) {
+  const ts = c.timestamp ? new Date(c.timestamp.seconds * 1000) : new Date();
+  const timeStr = ts.toLocaleDateString('en-MY', { day:'numeric', month:'short', year:'numeric' }) + ' ' +
+                   ts.toLocaleTimeString('en-MY', { hour:'2-digit', minute:'2-digit', hour12:true });
+  const div = document.createElement('div');
+  div.className = 'comment-item';
+  div.innerHTML = `
+    <div class="comment-meta"><strong>${escapeHTML(c.name)}</strong> · ${timeStr}</div>
+    <div class="comment-text">${escapeHTML(c.text)}</div>
+    <button class="comment-reply-btn" onclick="startReply('${c.id}','${escapeHTML(c.name).replace(/'/g,"\\'")}')">↩ Reply</button>`;
+
+  const replies = repliesMap[c.id] || [];
+  if (replies.length) {
+    const repliesDiv = document.createElement('div');
+    repliesDiv.className = 'comment-replies';
+    replies.sort((a,b) => {
+      const ta = a.timestamp ? a.timestamp.seconds : 0;
+      const tb = b.timestamp ? b.timestamp.seconds : 0;
+      return ta - tb;
+    });
+    replies.forEach(r => repliesDiv.appendChild(buildCommentEl(r, repliesMap)));
+    div.appendChild(repliesDiv);
+  }
+  return div;
 }
 
 function escapeHTML(str) {
