@@ -178,6 +178,8 @@
     .btn-action { display: inline-flex; align-items: center; gap: 4px; border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-family: 'Inter', sans-serif; font-weight: 600; cursor: pointer; transition: all .2s; text-decoration: none; }
     .btn-wa { background: #25d366; color: #fff; }
     .btn-wa:hover { background: #1da851; }
+    .btn-cal { background: #3b82f6; color: #fff; }
+    .btn-cal:hover { background: #2563eb; }
     .btn-remind { background: var(--border); color: var(--subtext); }
     .btn-remind:hover { background: var(--blue); color: #fff; }
     .btn-remind.reminded { background: var(--blue); color: #fff; }
@@ -692,6 +694,58 @@ function shareWhatsApp(home, away, utcISO, venue) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ADD TO CALENDAR (.ics)
+// ═══════════════════════════════════════════════════════════════════════════════
+function addToCalendar(home, away, utcISO, venue) {
+  const dt = new Date(utcISO);
+  const pad2 = n => String(n).padStart(2,'0');
+  const dtStart = dt.getUTCFullYear() + pad2(dt.getUTCMonth()+1) + pad2(dt.getUTCDate()) + 'T' + pad2(dt.getUTCHours()) + pad2(dt.getUTCMinutes()) + pad2(dt.getUTCSeconds());
+  const dtEnd = new Date(dt.getTime() + 2*3600000);
+  const dtEndStr = dtEnd.getUTCFullYear() + pad2(dtEnd.getUTCMonth()+1) + pad2(dtEnd.getUTCDate()) + 'T' + pad2(dtEnd.getUTCHours()) + pad2(dtEnd.getUTCMinutes()) + pad2(dtEnd.getUTCSeconds());
+  const now = new Date();
+  const dtStamp = now.getUTCFullYear() + pad2(now.getUTCMonth()+1) + pad2(now.getUTCDate()) + 'T' + pad2(now.getUTCHours()) + pad2(now.getUTCMinutes()) + pad2(now.getUTCSeconds());
+
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//WorldCup2026//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    'DTSTART:' + dtStart,
+    'DTEND:' + dtEndStr,
+    'DTSTAMP:' + dtStamp,
+    'UID:' + Date.now() + '@worldcup2026',
+    'SUMMARY:⚽ ' + home + ' vs ' + away,
+    'DESCRIPTION:FIFA World Cup 2026\\n' + home + ' vs ' + away + '\\n' + fmtMYT(utcISO) + ' MYT\\n📍 ' + venue,
+    'LOCATION:' + venue,
+    'BEGIN:VALARM',
+    'TRIGGER:-PT15M',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:⚽ ' + home + ' vs ' + away + ' starts in 15 min!',
+    'END:VALARM',
+    'BEGIN:VALARM',
+    'TRIGGER:-PT5M',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:⚽ ' + home + ' vs ' + away + ' starts in 5 min!',
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = home + '_vs_' + away + '_WC2026.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📅 Calendar event downloaded!');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // BUILD CARD  (now with API score overlay)
 // ═══════════════════════════════════════════════════════════════════════════════
 function buildCard(m) {
@@ -760,6 +814,8 @@ function buildCard(m) {
 
   const remindBtn = !past && !tbd ? `<button class="btn-action btn-remind ${isReminded?'reminded':''}" onclick="event.stopPropagation();toggleReminder(${no},'${home}','${away}','${utc}')">${isReminded?'🔔 Set':'🔔 Remind'}</button>` : '';
 
+  const calBtn = !past && !tbd ? `<button class="btn-action btn-cal" onclick="event.stopPropagation();addToCalendar('${home}','${away}','${utc}','${venue.replace(/'/g,"\\'")}')">📅 Calendar</button>` : '';
+
   const waBtn = `<button class="btn-action btn-wa" onclick="event.stopPropagation();shareWhatsApp('${home}','${away}','${utc}','${venue.replace(/'/g,"\\'")}')">📲 WhatsApp</button>`;
 
   card.innerHTML = `
@@ -786,6 +842,7 @@ function buildCard(m) {
     </div>
     <div class="card-actions">
       ${waBtn}
+      ${calBtn}
       ${remindBtn}
       ${favBtn}
     </div>
