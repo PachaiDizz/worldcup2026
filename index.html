@@ -692,53 +692,74 @@ function shareWhatsApp(home, away, utcISO, venue) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// REMINDER → PHONE ALARM (.ics)
+// REMINDER → PHONE ALARM
 // ═══════════════════════════════════════════════════════════════════════════════
 function downloadReminderICS(home, away, utcISO) {
   const dt = new Date(utcISO);
   const pad2 = n => String(n).padStart(2, '0');
-  const dtStart = dt.getUTCFullYear() + pad2(dt.getUTCMonth()+1) + pad2(dt.getUTCDate()) + 'T' + pad2(dt.getUTCHours()) + pad2(dt.getUTCMinutes()) + pad2(dt.getUTCSeconds()) + 'Z';
   const dtEnd = new Date(dt.getTime() + 2*3600000);
-  const dtEndStr = dtEnd.getUTCFullYear() + pad2(dtEnd.getUTCMonth()+1) + pad2(dtEnd.getUTCDate()) + 'T' + pad2(dtEnd.getUTCHours()) + pad2(dtEnd.getUTCMinutes()) + pad2(dtEnd.getUTCSeconds()) + 'Z';
-  const now = new Date();
-  const dtStamp = now.getUTCFullYear() + pad2(now.getUTCMonth()+1) + pad2(now.getUTCDate()) + 'T' + pad2(now.getUTCHours()) + pad2(now.getUTCMinutes()) + pad2(now.getUTCSeconds()) + 'Z';
 
-  const ics = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//WorldCup2026//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    'BEGIN:VEVENT',
-    'DTSTART:' + dtStart,
-    'DTEND:' + dtEndStr,
-    'DTSTAMP:' + dtStamp,
-    'UID:' + Date.now() + '@worldcup2026',
-    'SUMMARY:⚽ ' + home + ' vs ' + away,
-    'DESCRIPTION:FIFA World Cup 2026\\n' + home + ' vs ' + away + '\\n' + fmtMYT(utcISO) + ' MYT',
-    'BEGIN:VALARM',
-    'TRIGGER:-PT15M',
-    'ACTION:DISPLAY',
-    'DESCRIPTION:⚽ ' + home + ' vs ' + away + ' starts in 15 min!',
-    'END:VALARM',
-    'BEGIN:VALARM',
-    'TRIGGER:-PT5M',
-    'ACTION:DISPLAY',
-    'DESCRIPTION:⚽ ' + home + ' vs ' + away + ' starts in 5 min!',
-    'END:VALARM',
-    'END:VEVENT',
-    'END:VCALENDAR'
-  ].join('\r\n');
+  // Format for Google Calendar: YYYYMMDDTHHmmSSZ
+  const gCalStart = dt.getUTCFullYear() + pad2(dt.getUTCMonth()+1) + pad2(dt.getUTCDate()) + 'T' + pad2(dt.getUTCHours()) + pad2(dt.getUTCMinutes()) + pad2(dt.getUTCSeconds()) + 'Z';
+  const gCalEnd = dtEnd.getUTCFullYear() + pad2(dtEnd.getUTCMonth()+1) + pad2(dtEnd.getUTCDate()) + 'T' + pad2(dtEnd.getUTCHours()) + pad2(dtEnd.getUTCMinutes()) + pad2(dtEnd.getUTCSeconds()) + 'Z';
 
-  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = home + '_vs_' + away + '_WC2026.ics';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const title = '⚽ ' + home + ' vs ' + away;
+  const details = 'FIFA World Cup 2026\\n' + home + ' vs ' + away + '\\n' + fmtMYT(utcISO) + ' MYT';
+
+  // Detect Android
+  const isAndroid = /android/i.test(navigator.userAgent);
+
+  if (isAndroid) {
+    // Android → open Google Calendar app directly
+    const url = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+      + '&text=' + encodeURIComponent(title)
+      + '&dates=' + gCalStart + '/' + gCalEnd
+      + '&details=' + encodeURIComponent(details);
+    window.open(url, '_blank');
+  } else {
+    // iOS / Desktop → .ics download (iOS shows "Add to Calendar" prompt)
+    const dtStart = gCalStart;
+    const dtEndStr = gCalEnd;
+    const now = new Date();
+    const dtStamp = now.getUTCFullYear() + pad2(now.getUTCMonth()+1) + pad2(now.getUTCDate()) + 'T' + pad2(now.getUTCHours()) + pad2(now.getUTCMinutes()) + pad2(now.getUTCSeconds()) + 'Z';
+
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//WorldCup2026//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      'DTSTART:' + dtStart,
+      'DTEND:' + dtEndStr,
+      'DTSTAMP:' + dtStamp,
+      'UID:' + Date.now() + '@worldcup2026',
+      'SUMMARY:' + title,
+      'DESCRIPTION:' + details,
+      'BEGIN:VALARM',
+      'TRIGGER:-PT15M',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:⚽ ' + home + ' vs ' + away + ' starts in 15 min!',
+      'END:VALARM',
+      'BEGIN:VALARM',
+      'TRIGGER:-PT5M',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:⚽ ' + home + ' vs ' + away + ' starts in 5 min!',
+      'END:VALARM',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = home + '_vs_' + away + '_WC2026.ics';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
