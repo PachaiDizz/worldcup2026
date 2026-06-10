@@ -758,7 +758,7 @@ function saveFavs() { localStorage.setItem('wc26_favs', JSON.stringify(favourite
 function toggleFav(team) {
   if (favourites.includes(team)) { favourites = favourites.filter(t=>t!==team); showToast(`💔 Removed ${team}`); }
   else { favourites.push(team); showToast(`⭐ Added ${team}!`); }
-  saveFavs(); renderFavBar(); buildSchedule();
+  saveFavs(); renderFavBar();
 }
 function renderFavBar() {
   const bar   = document.getElementById('fav-bar');
@@ -782,14 +782,18 @@ function toggleReminder(matchNo, home, away, utcISO) {
     reminders = reminders.filter(n => n !== matchNo);
     if (reminderTimers[matchNo]) { clearTimeout(reminderTimers[matchNo]); delete reminderTimers[matchNo]; }
     if (reminderTimers[matchNo + '_5min']) { clearTimeout(reminderTimers[matchNo + '_5min']); delete reminderTimers[matchNo + '_5min']; }
-    saveReminders(); buildSchedule();
+    saveReminders();
     showToast('🔕 Reminder removed');
-    return;
+  } else {
+    reminders.push(matchNo); saveReminders();
+    downloadReminderICS(home, away, utcISO);
+    showToast('🔔 Alarm set! Phone will ring 15 & 5 min before kickoff');
   }
-  reminders.push(matchNo); saveReminders();
-  downloadReminderICS(home, away, utcISO);
-  showToast('🔔 Alarm set! Phone will ring 15 & 5 min before kickoff');
-  buildSchedule();
+  // Update button state only
+  document.querySelectorAll(`[onclick*="toggleReminder(${matchNo},"]`).forEach(btn => {
+    btn.classList.toggle('reminded', reminders.includes(matchNo));
+    btn.textContent = reminders.includes(matchNo) ? '🔔 Set' : '🔔 Remind';
+  });
 }
 
 function scheduleReminderTimer(matchNo, home, away, utcISO) {
@@ -1194,8 +1198,13 @@ async function voteMatch(key, choice, matchNo, home, away) {
   }
   showToast(oldChoice ? 'Vote changed!' : 'Vote recorded!');
   trackEvent('match_vote', { match_key: key, choice: choice, changed: !!oldChoice });
-  renderVoteResult(key, matchNo, home, away);
-  buildSchedule();
+  // Update button state only — onSnapshot handles the bar updates
+  const bar = document.getElementById('vote-' + matchNo);
+  if (bar) {
+    bar.querySelectorAll('.vote-btn').forEach(btn => btn.classList.remove('voted'));
+    const idx = choice === 'home' ? 0 : choice === 'draw' ? 1 : 2;
+    if (bar.children[idx]) bar.children[idx].classList.add('voted');
+  }
 }
 
 async function renderVoteResult(key, matchNo, home, away) {
