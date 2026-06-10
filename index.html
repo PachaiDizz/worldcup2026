@@ -206,6 +206,14 @@
     }
     .hidden { display: none !important; }
 
+    /* ── PAGINATION ── */
+    .pagination { display: flex; justify-content: center; align-items: center; gap: 6px; margin: 24px 0; flex-wrap: wrap; }
+    .page-btn { background: var(--card); border: 1px solid var(--border); color: var(--subtext); border-radius: 6px; padding: 6px 14px; font-size: 13px; font-family: 'Inter', sans-serif; cursor: pointer; transition: all .2s; }
+    .page-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .page-btn.active { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 600; }
+    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .page-info { font-size: 12px; color: var(--muted); margin: 0 8px; }
+
     /* ── COMMENTS ── */
     .comments-section { max-width: 1100px; margin: 32px auto 0; padding: 0 20px; }
     .comments-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -335,16 +343,16 @@
   </div>
 </div>
 
-<main id="schedule-root"></main>
-
 <!-- CHAMPION VOTE -->
 <div class="champ-section" id="champ-section">
   <div class="champ-inner">
-    <div class="champ-title">🏆 Who Will Win the World Cup?</div>
+    <div class="champ-title">🏆 Who Will Win the World Cup 2026?</div>
     <div class="champ-grid" id="champ-grid"></div>
     <div class="champ-rank" id="champ-rank"></div>
   </div>
 </div>
+
+<main id="schedule-root"></main>
 
 <!-- COMMENTS -->
 <div class="comments-section" id="comments-section">
@@ -541,6 +549,8 @@ let reminders    = JSON.parse(localStorage.getItem('wc26_reminders') || '[]');
 let stageFilter  = 'all';
 let searchQuery  = '';
 let favFilter    = false;
+let currentPage  = 1;
+const MATCHES_PER_PAGE = 12;
 
 // API state
 let apiData       = {};    // key → { status, homeScore, awayScore, minute, halfHome, halfAway, apiStatus }
@@ -906,9 +916,6 @@ function buildCard(m) {
   else if (apiSt === 'PAUSED') badgeHTML = '<span class="ht-badge">HT</span>';
   else if (fin)            badgeHTML = '<span class="ft-badge">FT</span>';
 
-  const favBtn = !tbd ? `<button class="btn-action btn-fav ${isFav?'active':''}" onclick="event.stopPropagation();toggleFav('${home}')">${isFav?'⭐':'☆'} ${home}</button>
-    <button class="btn-action btn-fav ${favourites.includes(away)?'active':''}" onclick="event.stopPropagation();toggleFav('${away}')">${favourites.includes(away)?'⭐':'☆'} ${away}</button>` : '';
-
   const remindBtn = !past && !tbd ? `<button class="btn-action btn-remind ${isReminded?'reminded':''}" onclick="event.stopPropagation();toggleReminder(${no},'${home}','${away}','${utc}')">${isReminded?'🔔 Set':'🔔 Remind'}</button>` : '';
 
   const waBtn = `<button class="btn-action btn-wa" onclick="event.stopPropagation();shareWhatsApp('${home}','${away}','${utc}','${venue.replace(/'/g,"\\'")}')">📲 WhatsApp</button>`;
@@ -951,7 +958,6 @@ function buildCard(m) {
     <div class="card-actions">
       ${waBtn}
       ${remindBtn}
-      ${favBtn}
     </div>
     ${voteHTML}
     ${statsBtn}
@@ -1016,11 +1022,17 @@ function buildSchedule() {
     return;
   }
 
+  // Pagination
+  const totalPages = Math.ceil(filtered.length / MATCHES_PER_PAGE);
+  if (currentPage > totalPages) currentPage = totalPages;
+  const startIdx = (currentPage - 1) * MATCHES_PER_PAGE;
+  const paged = filtered.slice(startIdx, startIdx + MATCHES_PER_PAGE);
+
   const stagesToShow = stageFilter==='all' ? STAGES.map(s=>s.key) : [stageFilter];
 
   for (const sk of stagesToShow) {
     const sm = STAGES.find(s=>s.key===sk);
-    const sMatches = filtered.filter(m=>m[6]===sk);
+    const sMatches = paged.filter(m=>m[6]===sk);
     if (!sMatches.length) continue;
 
     const byDay = {};
@@ -1053,6 +1065,33 @@ function buildSchedule() {
     }
     root.appendChild(block);
   }
+
+  // Pagination controls
+  if (totalPages > 1) {
+    const pag = document.createElement('div');
+    pag.className = 'pagination';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'page-btn';
+    prevBtn.textContent = '← Prev';
+    prevBtn.disabled = currentPage === 1;
+    prevBtn.onclick = () => { currentPage--; buildSchedule(); window.scrollTo({top: root.offsetTop - 20, behavior: 'smooth'}); };
+    pag.appendChild(prevBtn);
+
+    const info = document.createElement('span');
+    info.className = 'page-info';
+    info.textContent = `Page ${currentPage} of ${totalPages} (${filtered.length} matches)`;
+    pag.appendChild(info);
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'page-btn';
+    nextBtn.textContent = 'Next →';
+    nextBtn.disabled = currentPage === totalPages;
+    nextBtn.onclick = () => { currentPage++; buildSchedule(); window.scrollTo({top: root.offsetTop - 20, behavior: 'smooth'}); };
+    pag.appendChild(nextBtn);
+
+    root.appendChild(pag);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1063,11 +1102,13 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     stageFilter = btn.dataset.stage;
+    currentPage = 1;
     buildSchedule();
   });
 });
 document.getElementById('search-input').addEventListener('input', e => {
   searchQuery = e.target.value.trim();
+  currentPage = 1;
   buildSchedule();
 });
 
@@ -1077,21 +1118,29 @@ document.getElementById('search-input').addEventListener('input', e => {
 let votedMatches = JSON.parse(localStorage.getItem('wc26_votes') || '{}');
 
 async function voteMatch(key, choice, matchNo, home, away) {
-  if (votedMatches[key]) { showToast('Already voted on this match'); return; }
+  const oldChoice = votedMatches[key];
+  if (oldChoice === choice) { showToast('Already picked this'); return; }
   votedMatches[key] = choice;
   localStorage.setItem('wc26_votes', JSON.stringify(votedMatches));
 
-  const field = 'votes_' + choice;
   const ref = db.collection('match_votes').doc(key);
   const snap = await ref.get();
-  if (snap.exists) {
-    await ref.update({ [field]: firebase.firestore.FieldValue.increment(1) });
+
+  if (snap.exists && oldChoice) {
+    const oldField = 'votes_' + oldChoice;
+    const newField = 'votes_' + choice;
+    await ref.update({
+      [oldField]: firebase.firestore.FieldValue.increment(-1),
+      [newField]: firebase.firestore.FieldValue.increment(1)
+    });
+  } else if (snap.exists) {
+    await ref.update({ ['votes_' + choice]: firebase.firestore.FieldValue.increment(1) });
   } else {
     const data = { votes_home: 0, votes_draw: 0, votes_away: 0 };
-    data[field] = 1;
+    data['votes_' + choice] = 1;
     await ref.set(data);
   }
-  showToast('Vote recorded!');
+  showToast(oldChoice ? 'Vote changed!' : 'Vote recorded!');
   renderVoteResult(key, matchNo, home, away);
   buildSchedule();
 }
@@ -1210,17 +1259,31 @@ const CHAMPION_CANDIDATES = [
 ];
 
 async function voteChampion(team) {
-  if (votedChampion) { showToast('You already picked your champion!'); return; }
+  const oldPick = votedChampion;
+  if (oldPick === team) { showToast('Already picked ' + team + '!'); return; }
   votedChampion = team;
   localStorage.setItem('wc26_champ', team);
-  const ref = db.collection('champion_votes').doc(team);
-  const snap = await ref.get();
-  if (snap.exists) {
-    await ref.update({ count: firebase.firestore.FieldValue.increment(1) });
+
+  if (oldPick) {
+    const oldRef = db.collection('champion_votes').doc(oldPick);
+    const newRef = db.collection('champion_votes').doc(team);
+    await oldRef.update({ count: firebase.firestore.FieldValue.increment(-1) });
+    const newSnap = await newRef.get();
+    if (newSnap.exists) {
+      await newRef.update({ count: firebase.firestore.FieldValue.increment(1) });
+    } else {
+      await newRef.set({ count: 1 });
+    }
   } else {
-    await ref.set({ count: 1 });
+    const ref = db.collection('champion_votes').doc(team);
+    const snap = await ref.get();
+    if (snap.exists) {
+      await ref.update({ count: firebase.firestore.FieldValue.increment(1) });
+    } else {
+      await ref.set({ count: 1 });
+    }
   }
-  showToast('Champion pick: ' + team + '!');
+  showToast(oldPick ? 'Champion changed to ' + team + '!' : 'Champion pick: ' + team + '!');
   renderChampionSection();
 }
 
