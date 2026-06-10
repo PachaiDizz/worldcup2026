@@ -414,13 +414,14 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const analytics = firebase.analytics();
+let analytics = null;
+try { analytics = firebase.analytics(); } catch(e) { console.warn('Analytics not available'); }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANALYTICS HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 function trackEvent(name, params) {
-  try { analytics.logEvent(name, params); } catch(e) {}
+  try { if (analytics) analytics.logEvent(name, params); } catch(e) {}
 }
 trackEvent('page_view', { page_title: 'World Cup 2026 Tracker' });
 
