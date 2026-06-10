@@ -605,7 +605,6 @@ const todayKey   = ()  => new Date().toLocaleDateString('en-CA',{timeZone:'Asia/
 const isLive     = utc => { const s=new Date(utc).getTime(); const n=Date.now(); return n>=s && n<=s+7200000; };
 const isPast     = utc => Date.now() > new Date(utc).getTime()+7200000;
 const isTBD      = n   => /^(Winner|Runner|Best|Loser|TBD)/.test(n);
-const getFlag    = n   => FLAGS[n] || '🏳️';
 const pad        = n   => String(n).padStart(2,'0');
 
 // Build lookup key:  "home|away|YYYY-MM-DD"  (all lowercase)
