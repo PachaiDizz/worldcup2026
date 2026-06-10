@@ -378,7 +378,7 @@
 <div class="comments-section" id="comments-section">
   <div class="comments-header">
     <span style="font-size:24px">💬</span>
-    <span class="comments-title">Match Day Comments</span>
+    <span class="comments-title">💬 Chat & Chill</span>
   </div>
   <div class="comment-form">
     <div class="reply-indicator" id="reply-indicator" style="display:none">
@@ -386,7 +386,7 @@
       <button class="cancel-reply" onclick="cancelReply()">✕</button>
     </div>
     <input id="comment-name" type="text" placeholder="Your name" maxlength="30" />
-    <textarea id="comment-text" placeholder="Leave a comment..." maxlength="300"></textarea>
+    <textarea id="comment-text" placeholder="Say something fun..." maxlength="300"></textarea>
     <button class="btn-submit" onclick="submitComment()">Send</button>
   </div>
   <div id="comments-list"></div>
@@ -1505,7 +1505,7 @@ async function loadComments() {
   if (!list) return;
   try {
     const snap = await db.collection('comments').orderBy('timestamp', 'desc').limit(100).get();
-    if (snap.empty) { list.innerHTML = '<div class="comments-empty">No comments yet. Be the first!</div>'; return; }
+    if (snap.empty) { list.innerHTML = '<div class="comments-empty">No comments yet — drop something! 😄</div>'; return; }
 
     const all = [];
     snap.forEach(doc => {
