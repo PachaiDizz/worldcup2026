@@ -248,16 +248,13 @@
     .vote-pct.home-pct { background: rgba(59,130,246,0.15); color: var(--blue); }
     .vote-pct.draw-pct { background: rgba(100,116,139,0.15); color: var(--muted); }
     .vote-pct.away-pct { background: rgba(239,68,68,0.15); color: var(--red); }
-    .winrate-wrap { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
-    .winrate-labels { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 10px; }
-    .winrate-label { display: flex; align-items: center; gap: 3px; }
-    .winrate-label .wl-team { color: var(--subtext); font-weight: 600; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .winrate-label .wl-pct { font-weight: 700; font-size: 11px; }
-    .winrate-label.wl-home .wl-pct { color: var(--blue); }
-    .winrate-label.wl-draw .wl-pct { color: var(--muted); }
-    .winrate-label.wl-away .wl-pct { color: var(--red); }
-    .winrate-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 1px; }
-    .winrate-seg { height: 100%; transition: width .4s ease; min-width: 2px; }
+    .vote-result { display: flex; gap: 4px; margin-top: 4px; }
+    .vote-pct { flex: 1; text-align: center; font-size: 10px; font-weight: 600; border-radius: 4px; padding: 3px; }
+    .vote-pct.home-pct { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .vote-pct.draw-pct { background: rgba(100,116,139,0.15); color: var(--muted); }
+    .vote-pct.away-pct { background: rgba(239,68,68,0.15); color: var(--red); }
+    .winrate-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 4px; gap: 1px; }
+    .winrate-seg { height: 100%; transition: width .3s; }
     .winrate-seg.home-seg { background: var(--blue); }
     .winrate-seg.draw-seg { background: var(--muted); }
     .winrate-seg.away-seg { background: var(--red); }
@@ -1211,19 +1208,14 @@ async function renderVoteResult(key, matchNo, home, away) {
   const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 33;
   const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 34;
   const ap = total > 0 ? 100 - hp - dp : 33;
-  const voteText = total > 0 ? `(${total} vote${total!==1?'s':''})` : '';
   el.innerHTML = `
-    <div class="winrate-wrap">
-      <div class="winrate-labels">
-        <span class="winrate-label wl-home"><span class="wl-pct">${total > 0 ? hp+'%' : '—'}</span> <span class="wl-team">${home}</span></span>
-        <span class="winrate-label wl-draw" style="font-size:9px;color:var(--muted)">${voteText || 'No votes yet'}</span>
-        <span class="winrate-label wl-away"><span class="wl-team">${away}</span> <span class="wl-pct">${total > 0 ? ap+'%' : '—'}</span></span>
-      </div>
-      <div class="winrate-bar">
-        <div class="winrate-seg home-seg" style="width:${hp}%"></div>
-        <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
-        <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-      </div>
+    <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
+    <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
+    <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
+    <div class="winrate-bar">
+      <div class="winrate-seg home-seg" style="width:${hp}%"></div>
+      <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
+      <div class="winrate-seg away-seg" style="width:${ap}%"></div>
     </div>`;
 }
 
@@ -1242,19 +1234,14 @@ async function loadAllVoteResults() {
       const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 33;
       const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 34;
       const ap = total > 0 ? 100 - hp - dp : 33;
-      const voteText = total > 0 ? `(${total} vote${total!==1?'s':''})` : '';
       el.innerHTML = `
-        <div class="winrate-wrap">
-          <div class="winrate-labels">
-            <span class="winrate-label wl-home"><span class="wl-pct">${total > 0 ? hp+'%' : '—'}</span> <span class="wl-team">${m[2]}</span></span>
-            <span class="winrate-label wl-draw" style="font-size:9px;color:var(--muted)">${voteText || 'No votes yet'}</span>
-            <span class="winrate-label wl-away"><span class="wl-team">${m[3]}</span> <span class="wl-pct">${total > 0 ? ap+'%' : '—'}</span></span>
-          </div>
-          <div class="winrate-bar">
-            <div class="winrate-seg home-seg" style="width:${hp}%"></div>
-            <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
-            <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-          </div>
+        <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
+        <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
+        <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
+        <div class="winrate-bar">
+          <div class="winrate-seg home-seg" style="width:${hp}%"></div>
+          <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
+          <div class="winrate-seg away-seg" style="width:${ap}%"></div>
         </div>`;
     }
   } catch(e) { console.error('Vote load error:', e); }
@@ -1358,7 +1345,24 @@ const CHAMPION_CANDIDATES = [
 
 async function voteChampion(team) {
   const oldPick = votedChampion;
-  if (oldPick === team) { showToast('Already picked ' + team + '!'); return; }
+
+  // Deselect if clicking the same team
+  if (oldPick === team) {
+    votedChampion = null;
+    localStorage.removeItem('wc26_champ');
+    const ref = db.collection('champion_votes').doc(team);
+    const snap = await ref.get();
+    if (snap.exists) {
+      const cnt = (snap.data().count || 1) - 1;
+      if (cnt <= 0) await ref.delete();
+      else await ref.update({ count: cnt });
+    }
+    showToast('Pick removed');
+    trackEvent('champion_vote', { team: team, action: 'deselect' });
+    renderChampionSection();
+    return;
+  }
+
   votedChampion = team;
   localStorage.setItem('wc26_champ', team);
 
