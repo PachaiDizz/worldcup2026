@@ -135,7 +135,9 @@
 
     .teams { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; }
     .team { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 0; }
-    .flag { font-size: 26px; line-height: 1; }
+    .flag { font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .flag-img { border-radius: 2px; object-fit: cover; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+    .flag-placeholder { background: var(--border); border-radius: 2px; display: inline-block; }
     .team-name { font-family: 'Oswald', sans-serif; font-size: 13px; font-weight: 600; text-align: center; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
     .vs-block { text-align: center; flex-shrink: 0; }
     .vs { font-family: 'Oswald', sans-serif; font-size: 13px; color: var(--muted); }
@@ -246,6 +248,11 @@
     .vote-pct.home-pct { background: rgba(59,130,246,0.15); color: var(--blue); }
     .vote-pct.draw-pct { background: rgba(100,116,139,0.15); color: var(--muted); }
     .vote-pct.away-pct { background: rgba(239,68,68,0.15); color: var(--red); }
+    .winrate-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 4px; gap: 1px; }
+    .winrate-seg { height: 100%; transition: width .3s; }
+    .winrate-seg.home-seg { background: var(--blue); }
+    .winrate-seg.draw-seg { background: var(--muted); }
+    .winrate-seg.away-seg { background: var(--red); }
 
     /* ── STATS ── */
     .stats-toggle { background: none; border: none; color: var(--muted); font-size: 11px; cursor: pointer; margin-top: 6px; font-family: 'Inter', sans-serif; }
@@ -268,7 +275,7 @@
     .champ-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 12px; color: var(--text); cursor: pointer; text-align: center; font-family: 'Inter', sans-serif; transition: all .2s; }
     .champ-btn:hover { border-color: var(--gold); }
     .champ-btn.voted { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 600; }
-    .champ-btn .ch-flag { font-size: 18px; display: block; margin-bottom: 2px; }
+    .champ-btn img { border-radius: 2px; margin-bottom: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
     .champ-btn .ch-count { font-size: 10px; color: var(--muted); }
     .champ-btn.voted .ch-count { color: #000; }
     .champ-rank { margin-top: 12px; }
@@ -279,6 +286,7 @@
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics-compat.js"></script>
 </head>
 <body>
 
@@ -354,6 +362,7 @@
   <div class="champ-inner">
     <div class="champ-title">🏆 Who Will Win the World Cup 2026?</div>
     <div class="champ-grid" id="champ-grid"></div>
+    <div class="pagination" id="champ-pagination"></div>
     <div class="champ-rank" id="champ-rank"></div>
   </div>
 </div>
@@ -405,24 +414,40 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const analytics = firebase.analytics();
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FLAGS
+// ANALYTICS HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+function trackEvent(name, params) {
+  try { analytics.logEvent(name, params); } catch(e) {}
+}
+trackEvent('page_view', { page_title: 'World Cup 2026 Tracker' });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FLAGS  (image-based for desktop compatibility)
 // ═══════════════════════════════════════════════════════════════════════════════
 const FLAGS = {
-  "Mexico":"🇲🇽","South Africa":"🇿🇦","South Korea":"🇰🇷","Czechia":"🇨🇿",
-  "Canada":"🇨🇦","Bosnia & Herzegovina":"🇧🇦","USA":"🇺🇸","Paraguay":"🇵🇾",
-  "Qatar":"🇶🇦","Switzerland":"🇨🇭","Brazil":"🇧🇷","Morocco":"🇲🇦",
-  "Haiti":"🇭🇹","Scotland":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","Australia":"🇦🇺","Türkiye":"🇹🇷",
-  "Germany":"🇩🇪","Curaçao":"🏝️","Netherlands":"🇳🇱","Japan":"🇯🇵",
-  "Ivory Coast":"🇨🇮","Ecuador":"🇪🇨","Sweden":"🇸🇪","Tunisia":"🇹🇳",
-  "Spain":"🇪🇸","Cape Verde":"🇨🇻","Belgium":"🇧🇪","Egypt":"🇪🇬",
-  "Saudi Arabia":"🇸🇦","Uruguay":"🇺🇾","Iran":"🇮🇷","New Zealand":"🇳🇿",
-  "France":"🇫🇷","Senegal":"🇸🇳","Iraq":"🇮🇶","Norway":"🇳🇴",
-  "Argentina":"🇦🇷","Algeria":"🇩🇿","Austria":"🇦🇹","Jordan":"🇯🇴",
-  "Portugal":"🇵🇹","DR Congo":"🇨🇩","England":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Croatia":"🇭🇷",
-  "Ghana":"🇬🇭","Panama":"🇵🇦","Uzbekistan":"🇺🇿","Colombia":"🇨🇴",
+  "Mexico":"mx","South Africa":"za","South Korea":"kr","Czechia":"cz",
+  "Canada":"ca","Bosnia & Herzegovina":"ba","USA":"us","Paraguay":"py",
+  "Qatar":"qa","Switzerland":"ch","Brazil":"br","Morocco":"ma",
+  "Haiti":"ht","Scotland":"gb-sct","Australia":"au","Türkiye":"tr",
+  "Germany":"de","Curaçao":"cw","Netherlands":"nl","Japan":"jp",
+  "Ivory Coast":"ci","Ecuador":"ec","Sweden":"se","Tunisia":"tn",
+  "Spain":"es","Cape Verde":"cv","Belgium":"be","Egypt":"eg",
+  "Saudi Arabia":"sa","Uruguay":"uy","Iran":"ir","New Zealand":"nz",
+  "France":"fr","Senegal":"sn","Iraq":"iq","Norway":"no",
+  "Argentina":"ar","Algeria":"dz","Austria":"at","Jordan":"jo",
+  "Portugal":"pt","DR Congo":"cd","England":"gb-eng","Croatia":"hr",
+  "Ghana":"gh","Panama":"pa","Uzbekistan":"uz","Colombia":"co",
 };
+
+function getFlagImg(name, size) {
+  const code = FLAGS[name];
+  if (!code) return `<span class="flag-placeholder" style="width:${size||26}px;height:${size||26}px"></span>`;
+  return `<img src="https://flagcdn.com/w80/${code}.png" alt="${name}" class="flag-img" style="width:${size||26}px;height:${Math.round((size||26)*0.67)}px" onerror="this.style.display='none'" />`;
+}
+const getFlag = name => getFlagImg(name);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // API TEAM NAME → LOCAL NAME  (football-data.org uses different names)
@@ -805,7 +830,8 @@ function restoreReminders() {
 // WHATSAPP SHARE
 // ═══════════════════════════════════════════════════════════════════════════════
 function shareWhatsApp(home, away, utcISO, venue) {
-  const msg = `⚽ *FIFA World Cup 2026*\n\n${getFlag(home)} *${home}* vs *${away}* ${getFlag(away)}\n\n📅 ${fmtMYTDate(utcISO)}\n⏰ ${fmtMYT(utcISO)} MYT\n📍 ${venue}\n\n🔗 https://worldcup2026-x6bv.onrender.com`;
+  const msg = `⚽ *FIFA World Cup 2026*\n\n${home} vs ${away}\n\n📅 ${fmtMYTDate(utcISO)}\n⏰ ${fmtMYT(utcISO)} MYT\n📍 ${venue}\n\n🔗 https://worldcup2026-x6bv.onrender.com`;
+  trackEvent('share_whatsapp', { home: home, away: away });
   window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
@@ -1113,12 +1139,14 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.classList.add('active');
     stageFilter = btn.dataset.stage;
     currentPage = 1;
+    trackEvent('filter_stage', { stage: stageFilter });
     buildSchedule();
   });
 });
 document.getElementById('search-input').addEventListener('input', e => {
   searchQuery = e.target.value.trim();
   currentPage = 1;
+  if (searchQuery.length > 2) trackEvent('search', { query: searchQuery });
   buildSchedule();
 });
 
@@ -1151,6 +1179,7 @@ async function voteMatch(key, choice, matchNo, home, away) {
     await ref.set(data);
   }
   showToast(oldChoice ? 'Vote changed!' : 'Vote recorded!');
+  trackEvent('match_vote', { match_key: key, choice: choice, changed: !!oldChoice });
   renderVoteResult(key, matchNo, home, away);
   buildSchedule();
 }
@@ -1169,7 +1198,12 @@ async function renderVoteResult(key, matchNo, home, away) {
   el.innerHTML = `
     <div class="vote-pct home-pct">${hp}%</div>
     <div class="vote-pct draw-pct">${dp}%</div>
-    <div class="vote-pct away-pct">${ap}%</div>`;
+    <div class="vote-pct away-pct">${ap}%</div>
+    <div class="winrate-bar">
+      <div class="winrate-seg home-seg" style="width:${hp}%"></div>
+      <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
+      <div class="winrate-seg away-seg" style="width:${ap}%"></div>
+    </div>`;
 }
 
 async function loadAllVoteResults() {
@@ -1263,9 +1297,17 @@ function renderStatsHTML(stats) {
 // CHAMPION VOTE (Firebase)
 // ═══════════════════════════════════════════════════════════════════════════════
 let votedChampion = localStorage.getItem('wc26_champ') || null;
+let champPage = 1;
+const CHAMPS_PER_PAGE = 12;
 const CHAMPION_CANDIDATES = [
-  'Brazil','Argentina','France','Germany','Spain','England',
-  'Portugal','Netherlands','Belgium','Japan','Morocco','USA'
+  'Argentina','Brazil','France','Germany','Spain','England',
+  'Portugal','Netherlands','Belgium','Japan','Morocco','USA',
+  'Mexico','Italy','Croatia','Colombia','Uruguay','Senegal',
+  'South Korea','Australia','Switzerland','Ecuador','Serbia','Canada',
+  'Algeria','Tunisia','Egypt','Cameroon','Ghana','Nigeria',
+  'Saudi Arabia','Iran','Iraq','Qatar','Panama','Costa Rica',
+  'New Zealand','Czechia','Poland','Sweden','Norway','Denmark',
+  'Austria','Scotland','Wales','Cape Verde','Curaçao','Haiti'
 ];
 
 async function voteChampion(team) {
@@ -1294,33 +1336,69 @@ async function voteChampion(team) {
     }
   }
   showToast(oldPick ? 'Champion changed to ' + team + '!' : 'Champion pick: ' + team + '!');
+  trackEvent('champion_vote', { team: team, changed: !!oldPick });
   renderChampionSection();
 }
 
 async function renderChampionSection() {
   const grid = document.getElementById('champ-grid');
   const rank = document.getElementById('champ-rank');
+  const pag = document.getElementById('champ-pagination');
   if (!grid) return;
 
   const counts = {};
   const snap = await db.collection('champion_votes').get();
   snap.forEach(doc => { counts[doc.id] = doc.data().count || 0; });
 
-  grid.innerHTML = CHAMPION_CANDIDATES.map(team => {
+  // Sort candidates by vote count (highest first)
+  const sorted = [...CHAMPION_CANDIDATES].sort((a,b) => (counts[b]||0) - (counts[a]||0));
+  const total = sorted.length;
+  const totalPages = Math.ceil(total / CHAMPS_PER_PAGE);
+  if (champPage > totalPages) champPage = totalPages;
+  const startIdx = (champPage - 1) * CHAMPS_PER_PAGE;
+  const paged = sorted.slice(startIdx, startIdx + CHAMPS_PER_PAGE);
+
+  grid.innerHTML = paged.map(team => {
     const c = counts[team] || 0;
     const isVoted = votedChampion === team;
     return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${team}')">
-      <span class="ch-flag">${getFlag(team)}</span>
+      ${getFlagImg(team, 32)}
       ${team}
       <span class="ch-count">${c} vote${c!==1?'s':''}</span>
     </button>`;
   }).join('');
 
-  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,5);
-  if (sorted.length) {
+  // Pagination
+  if (totalPages > 1) {
+    pag.innerHTML = '';
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'page-btn';
+    prevBtn.textContent = '← Prev';
+    prevBtn.disabled = champPage === 1;
+    prevBtn.onclick = () => { champPage--; renderChampionSection(); };
+    pag.appendChild(prevBtn);
+
+    const info = document.createElement('span');
+    info.className = 'page-info';
+    info.textContent = `Page ${champPage} of ${totalPages}`;
+    pag.appendChild(info);
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'page-btn';
+    nextBtn.textContent = 'Next →';
+    nextBtn.disabled = champPage === totalPages;
+    nextBtn.onclick = () => { champPage++; renderChampionSection(); };
+    pag.appendChild(nextBtn);
+  } else {
+    pag.innerHTML = '';
+  }
+
+  // Top 10 rankings
+  const allSorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,10);
+  if (allSorted.length) {
     rank.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Top Picks</div>' +
-      sorted.map(([team, cnt], i) =>
-        `<div class="champ-rank-row"><span class="champ-rank-pos">${i+1}.</span><span class="champ-rank-team">${getFlag(team)} ${team}</span><span class="champ-rank-votes">${cnt}</span></div>`
+      allSorted.map(([team, cnt], i) =>
+        `<div class="champ-rank-row"><span class="champ-rank-pos">${i+1}.</span><span class="champ-rank-team">${getFlagImg(team, 20)} ${team}</span><span class="champ-rank-votes">${cnt}</span></div>`
       ).join('');
   }
 }
@@ -1366,6 +1444,7 @@ async function submitComment() {
   btn.disabled = false;
   btn.textContent = 'Send';
   showToast(replyTo ? 'Reply posted!' : 'Comment posted!');
+  trackEvent('comment_post', { is_reply: !!replyTo });
   loadComments();
 }
 
