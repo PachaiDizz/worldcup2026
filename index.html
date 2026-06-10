@@ -387,7 +387,17 @@
   <div id="comments-list"></div>
 </div>
 
-<footer>⚽ FIFA World Cup 2026™ · All times in <strong>Malaysia Time (MYT / UTC+8)</strong> · Live scores via football-data.org</footer>
+<footer>
+  ⚽ FIFA World Cup 2026™ · All times in <strong>Malaysia Time (MYT / UTC+8)</strong> · Live scores via football-data.org
+  <div style="margin-top:12px">
+    <button onclick="toggleAdmin()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 10px;font-size:10px;cursor:pointer;font-family:'Inter',sans-serif">⚙ Admin</button>
+    <div id="admin-panel" style="display:none;margin-top:8px;background:var(--card);border:1px solid var(--red);border-radius:8px;padding:12px;max-width:400px;margin-left:auto;margin-right:auto">
+      <div style="font-size:12px;color:var(--red);font-weight:600;margin-bottom:8px">⚠ Reset All Data</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">This will delete all match votes, champion votes, and comments from Firebase. Cannot be undone.</div>
+      <button onclick="resetAllData()" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 Reset Everything</button>
+    </div>
+  </div>
+</footer>
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
@@ -1188,17 +1198,16 @@ async function renderVoteResult(key, matchNo, home, away) {
   const el = document.getElementById('vres-' + matchNo);
   if (!el) return;
   const snap = await db.collection('match_votes').doc(key).get();
-  if (!snap.exists) return;
-  const d = snap.data();
+  let d = { votes_home: 0, votes_draw: 0, votes_away: 0 };
+  if (snap.exists) d = snap.data();
   const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
-  if (total === 0) { el.innerHTML = ''; return; }
-  const hp = Math.round(((d.votes_home||0)/total)*100);
-  const dp = Math.round(((d.votes_draw||0)/total)*100);
-  const ap = 100 - hp - dp;
+  const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 33;
+  const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 34;
+  const ap = total > 0 ? 100 - hp - dp : 33;
   el.innerHTML = `
-    <div class="vote-pct home-pct">${hp}%</div>
-    <div class="vote-pct draw-pct">${dp}%</div>
-    <div class="vote-pct away-pct">${ap}%</div>
+    <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
+    <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
+    <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
     <div class="winrate-bar">
       <div class="winrate-seg home-seg" style="width:${hp}%"></div>
       <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
@@ -1207,11 +1216,31 @@ async function renderVoteResult(key, matchNo, home, away) {
 }
 
 async function loadAllVoteResults() {
-  for (const m of MATCHES) {
-    const k = matchKey(m[2], m[3], m[4]);
-    const voted = votedMatches[k];
-    if (voted) renderVoteResult(k, m[0], m[2], m[3]);
-  }
+  try {
+    const snap = await db.collection('match_votes').get();
+    const votesMap = {};
+    snap.forEach(doc => { votesMap[doc.id] = doc.data(); });
+
+    for (const m of MATCHES) {
+      const k = matchKey(m[2], m[3], m[4]);
+      const el = document.getElementById('vres-' + m[0]);
+      if (!el) continue;
+      const d = votesMap[k] || { votes_home: 0, votes_draw: 0, votes_away: 0 };
+      const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
+      const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 33;
+      const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 34;
+      const ap = total > 0 ? 100 - hp - dp : 33;
+      el.innerHTML = `
+        <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
+        <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
+        <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
+        <div class="winrate-bar">
+          <div class="winrate-seg home-seg" style="width:${hp}%"></div>
+          <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
+          <div class="winrate-seg away-seg" style="width:${ap}%"></div>
+        </div>`;
+    }
+  } catch(e) { console.error('Vote load error:', e); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1535,6 +1564,54 @@ document.addEventListener('click', function reqPerm() {
   requestNotificationPermission();
   document.removeEventListener('click', reqPerm);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN RESET
+// ═══════════════════════════════════════════════════════════════════════════════
+function toggleAdmin() {
+  const panel = document.getElementById('admin-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+async function resetAllData() {
+  if (!confirm('⚠ Are you sure?\n\nThis will delete ALL:\n• Match votes\n• Champion votes\n• Comments\n\nThis cannot be undone!')) return;
+  if (!confirm('Last chance! Really reset everything?')) return;
+
+  showToast('Resetting data...');
+  try {
+    // Delete all match_votes
+    const votes = await db.collection('match_votes').get();
+    const batch1 = db.batch();
+    votes.forEach(doc => batch1.delete(doc.ref));
+    await batch1.commit();
+
+    // Delete all champion_votes
+    const champs = await db.collection('champion_votes').get();
+    const batch2 = db.batch();
+    champs.forEach(doc => batch2.delete(doc.ref));
+    await batch2.commit();
+
+    // Delete all comments
+    const comments = await db.collection('comments').get();
+    const batch3 = db.batch();
+    comments.forEach(doc => batch3.delete(doc.ref));
+    await batch3.commit();
+
+    // Clear local storage
+    localStorage.removeItem('wc26_votes');
+    localStorage.removeItem('wc26_champ');
+    votedMatches = {};
+    votedChampion = null;
+
+    showToast('✅ All data reset!');
+    buildSchedule();
+    renderChampionSection();
+    loadComments();
+  } catch(e) {
+    console.error('Reset error:', e);
+    showToast('❌ Reset failed: ' + e.message);
+  }
+}
 </script>
 </body>
 </html>
