@@ -624,30 +624,51 @@ function toggleReminder(matchNo, home, away, utcISO) {
   if (reminders.includes(matchNo)) {
     reminders = reminders.filter(n => n !== matchNo);
     if (reminderTimers[matchNo]) { clearTimeout(reminderTimers[matchNo]); delete reminderTimers[matchNo]; }
+    if (reminderTimers[matchNo + '_5min']) { clearTimeout(reminderTimers[matchNo + '_5min']); delete reminderTimers[matchNo + '_5min']; }
     saveReminders(); buildSchedule();
     showToast('🔕 Reminder removed');
     return;
   }
   reminders.push(matchNo); saveReminders();
   scheduleReminderTimer(matchNo, home, away, utcISO);
-  showToast('🔔 Reminder set — 15 min before kickoff!');
+  showToast('🔔 Reminder set — 15 & 5 min before kickoff!');
   buildSchedule();
 }
 
 function scheduleReminderTimer(matchNo, home, away, utcISO) {
-  const delay = new Date(utcISO).getTime() - 15*60000 - Date.now();
-  if (delay <= 0) return;
-  reminderTimers[matchNo] = setTimeout(() => {
-    delete reminderTimers[matchNo];
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('⚽ Match Starting Soon!', {
-        body: `${home} vs ${away} in 15 min! (${fmtMYT(utcISO)} MYT)`,
-        icon: 'https://upload.wikimedia.org/wikipedia/en/thumb/a/a5/FIFA_World_Cup_2026_emblem.svg/200px-FIFA_World_Cup_2026_emblem.svg.png'
-      });
-    } else {
-      alert(`⚽ Match Starting Soon!\n\n${home} vs ${away} in 15 min! (${fmtMYT(utcISO)} MYT)`);
-    }
-  }, delay);
+  const matchTime = new Date(utcISO).getTime();
+
+  // 15 min before
+  const delay15 = matchTime - 15*60000 - Date.now();
+  if (delay15 > 0) {
+    reminderTimers[matchNo] = setTimeout(() => {
+      delete reminderTimers[matchNo];
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('⚽ Match Starting in 15 min!', {
+          body: `${home} vs ${away} — ${fmtMYT(utcISO)} MYT`,
+          icon: 'https://upload.wikimedia.org/wikipedia/en/thumb/a/a5/FIFA_World_Cup_2026_emblem.svg/200px-FIFA_World_Cup_2026_emblem.svg.png'
+        });
+      } else {
+        alert(`⚽ Match Starting in 15 min!\n\n${home} vs ${away}\n⏰ ${fmtMYT(utcISO)} MYT`);
+      }
+    }, delay15);
+  }
+
+  // 5 min before (backup for mobile)
+  const delay5 = matchTime - 5*60000 - Date.now();
+  if (delay5 > 0) {
+    reminderTimers[matchNo + '_5min'] = setTimeout(() => {
+      delete reminderTimers[matchNo + '_5min'];
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('⚽ Match Starting in 5 min!', {
+          body: `${home} vs ${away} — ${fmtMYT(utcISO)} MYT`,
+          icon: 'https://upload.wikimedia.org/wikipedia/en/thumb/a/a5/FIFA_World_Cup_2026_emblem.svg/200px-FIFA_World_Cup_2026_emblem.svg.png'
+        });
+      } else {
+        alert(`⚽ Match Starting in 5 min!\n\n${home} vs ${away}\n⏰ ${fmtMYT(utcISO)} MYT`);
+      }
+    }, delay5);
+  }
 }
 
 function requestNotificationPermission() {
@@ -737,7 +758,7 @@ function buildCard(m) {
   const favBtn = !tbd ? `<button class="btn-action btn-fav ${isFav?'active':''}" onclick="event.stopPropagation();toggleFav('${home}')">${isFav?'⭐':'☆'} ${home}</button>
     <button class="btn-action btn-fav ${favourites.includes(away)?'active':''}" onclick="event.stopPropagation();toggleFav('${away}')">${favourites.includes(away)?'⭐':'☆'} ${away}</button>` : '';
 
-  const remindBtn = !past && !tbd ? `<button class="btn-action btn-remind ${isReminded?'reminded':''}" onclick="event.stopPropagation();toggleReminder(${no},'${home}','${away}','${utc}')">${isReminded?'🔔 Reminded':'🔔 Remind'}</button>` : '';
+  const remindBtn = !past && !tbd ? `<button class="btn-action btn-remind ${isReminded?'reminded':''}" onclick="event.stopPropagation();toggleReminder(${no},'${home}','${away}','${utc}')">${isReminded?'🔔 Set':'🔔 Remind'}</button>` : '';
 
   const waBtn = `<button class="btn-action btn-wa" onclick="event.stopPropagation();shareWhatsApp('${home}','${away}','${utc}','${venue.replace(/'/g,"\\'")}')">📲 WhatsApp</button>`;
 
@@ -904,3 +925,4 @@ document.addEventListener('click', function reqPerm() {
 </script>
 </body>
 </html>
+
