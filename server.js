@@ -16,11 +16,15 @@ if (!API_KEY) {
 
 // ── Firebase Admin SDK (for server-side reset) ──
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-  console.log('Firebase Admin initialized.');
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    console.log('Firebase Admin initialized.');
+  } catch (e) {
+    console.error('Firebase Admin init failed (malformed JSON?):', e.message);
+  }
 } else {
   console.warn('WARNING: FIREBASE_SERVICE_ACCOUNT not set. Admin reset will not work.');
 }
@@ -89,7 +93,7 @@ app.get('/api/admin/comments', async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
   if (!admin.apps.length) {
-    return res.status(500, 'Firebase Admin not configured');
+    return res.status(500).json({ error: 'Firebase Admin not configured' });
   }
 
   try {
@@ -111,7 +115,7 @@ app.delete('/api/admin/comments/:id', async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
   if (!admin.apps.length) {
-    return res.status(500, 'Firebase Admin not configured');
+    return res.status(500).json({ error: 'Firebase Admin not configured' });
   }
 
   try {
@@ -138,7 +142,7 @@ app.get('/api/admin/stats', async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
   if (!admin.apps.length) {
-    return res.status(500, 'Firebase Admin not configured');
+    return res.status(500).json({ error: 'Firebase Admin not configured' });
   }
 
   try {
