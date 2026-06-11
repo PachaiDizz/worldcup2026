@@ -433,6 +433,32 @@
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px">This will delete all match votes, champion votes, and comments. Cannot be undone.</div>
       <button onclick="resetAllData()" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 Reset Everything</button>
     </div>
+    <!-- SCORE ADMIN PANEL -->
+    <div id="score-admin-panel" style="display:none;margin-top:8px;background:var(--card);border:1px solid var(--gold);border-radius:8px;padding:12px;max-width:400px;margin-left:auto;margin-right:auto">
+      <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:8px">⚽ Manual Score Update</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Enter match number and scores to override live data.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <select id="score-match-select" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;flex:1;min-width:120px">
+          <option value="">-- Select Match --</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+        <input id="score-home" type="number" min="0" placeholder="Home" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;width:60px;text-align:center">
+        <span style="color:var(--muted);font-size:12px">–</span>
+        <input id="score-away" type="number" min="0" placeholder="Away" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;width:60px;text-align:center">
+        <select id="score-status" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;flex:1">
+          <option value="FINISHED">FT (Finished)</option>
+          <option value="IN_PLAY">Live</option>
+          <option value="PAUSED">HT (Half-Time)</option>
+          <option value="TIMED">Scheduled</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="setManualScore()" style="background:var(--gold);color:#000;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">⚡ Set Score</button>
+        <button onclick="clearManualScore()" style="background:var(--border);color:var(--subtext);border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 Clear</button>
+      </div>
+      <div id="score-admin-log" style="margin-top:8px;font-size:11px;color:var(--muted);font-family:'Inter',sans-serif;max-height:60px;overflow-y:auto"></div>
+    </div>
   </div>
 </footer>
 
@@ -1881,6 +1907,111 @@ async function resetAllData() {
     showToast('Reset failed: ' + e.message);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN: MANUAL SCORE CONTROL
+// ═══════════════════════════════════════════════════════════════════════════════
+const ADMIN_KEY = 'wc26admin'; // must match server ADMIN_KEY
+
+function showAdminPanels() {
+  const resetPanel = document.getElementById('admin-panel');
+  const scorePanel = document.getElementById('score-admin-panel');
+  if (resetPanel) resetPanel.style.display = '';
+  if (scorePanel) scorePanel.style.display = '';
+  populateMatchSelect();
+}
+
+function populateMatchSelect() {
+  const sel = document.getElementById('score-match-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Select Match --</option>';
+  for (const m of MATCHES) {
+    const [no, grp, home, away] = m;
+    const opt = document.createElement('option');
+    opt.value = no;
+    opt.textContent = `M${no}: ${home} vs ${away} (${grp})`;
+    sel.appendChild(opt);
+  }
+}
+
+function scoreLog(msg) {
+  const el = document.getElementById('score-admin-log');
+  if (!el) return;
+  const line = document.createElement('div');
+  line.textContent = new Date().toLocaleTimeString() + ' — ' + msg;
+  el.prepend(line);
+  if (el.children.length > 10) el.lastChild.remove();
+}
+
+async function setManualScore() {
+  const matchNo = document.getElementById('score-match-select').value;
+  const home = document.getElementById('score-home').value;
+  const away = document.getElementById('score-away').value;
+  const status = document.getElementById('score-status').value;
+
+  if (!matchNo) { showToast('⚠ Select a match first'); return; }
+  if (home === '' || away === '') { showToast('⚠ Enter both scores'); return; }
+
+  scoreLog(`Setting M${matchNo}: ${home}-${away} (${status})...`);
+
+  try {
+    const res = await fetch(`/api/admin/set-score?key=${ADMIN_KEY}&match=${matchNo}&home=${home}&away=${away}&status=${status}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+
+    // Update local apiData so the card refreshes immediately
+    const matchEntry = MATCHES.find(m => m[0] === parseInt(matchNo));
+    if (matchEntry) {
+      const k = matchKey(matchEntry[2], matchEntry[3], matchEntry[4]);
+      apiData[k] = {
+        status: status === 'FINISHED' ? 'finished' : status === 'IN_PLAY' ? 'live' : status === 'PAUSED' ? 'finished' : 'scheduled',
+        apiStatus: status,
+        homeScore: parseInt(home),
+        awayScore: parseInt(away),
+        minute: status === 'IN_PLAY' ? 1 : null,
+        halfHome: null,
+        halfAway: null,
+        _manual: true
+      };
+    }
+
+    buildSchedule();
+    scoreLog(`✅ Match ${matchNo} = ${home}-${away} (${status})`);
+    if (typeof updateCountdownSection === 'function') updateCountdownSection();
+  } catch (e) {
+    scoreLog('❌ Error: ' + e.message);
+    showToast('Score update failed: ' + e.message);
+  }
+}
+
+async function clearManualScore() {
+  const matchNo = document.getElementById('score-match-select').value;
+  if (!matchNo) { showToast('⚠ Select a match to clear'); return; }
+
+  try {
+    const res = await fetch(`/api/admin/clear-score?key=${ADMIN_KEY}&match=${matchNo}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+
+    // Remove from local apiData
+    const matchEntry = MATCHES.find(m => m[0] === parseInt(matchNo));
+    if (matchEntry) {
+      const k = matchKey(matchEntry[2], matchEntry[3], matchEntry[4]);
+      delete apiData[k];
+    }
+
+    buildSchedule();
+    scoreLog(`🗑 Cleared manual score for Match ${matchNo}`);
+  } catch (e) {
+    scoreLog('❌ Error: ' + e.message);
+  }
+}
+
+// Auto-show admin panels if URL has ?admin=1
+if (location.search.includes('admin=1')) {
+  document.addEventListener('DOMContentLoaded', showAdminPanels);
+}
+
 </script>
 </body>
 </html>
