@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FIFA World Cup 2026 – Live Scores & Schedule (Malaysia Time)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>" />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
@@ -294,6 +295,16 @@
     .champ-rank-pos { width: 20px; text-align: right; color: var(--muted); font-weight: 600; }
     .champ-rank-team { flex: 1; color: var(--text); }
     .champ-rank-votes { color: var(--gold); font-weight: 600; }
+    /* ── SKELETON LOADING ── */
+    .sk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; padding: 20px 0; }
+    .sk-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+    .sk-line { height: 14px; border-radius: 4px; background: var(--border); margin-bottom: 10px; animation: shimmer 1.5s infinite; }
+    .sk-line.w60 { width: 60%; } .sk-line.w40 { width: 40%; } .sk-line.w80 { width: 80%; } .sk-line.full { width: 100%; }
+    .sk-line.h12 { height: 12px; } .sk-line.h20 { height: 20px; }
+    .sk-flag { width: 26px; height: 18px; border-radius: 2px; background: var(--border); display: inline-block; animation: shimmer 1.5s infinite; }
+    .sk-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .sk-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+    @keyframes shimmer { 0% { opacity: 0.3; } 50% { opacity: 0.6; } 100% { opacity: 0.3; } }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -373,13 +384,28 @@
 <div class="champ-section" id="champ-section">
   <div class="champ-inner">
     <div class="champ-title">🏆 Who Will Win the World Cup 2026?</div>
-    <div class="champ-grid" id="champ-grid"></div>
+    <div class="champ-grid" id="champ-grid">
+      <div class="sk-grid" id="champ-sk-grid">
+        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
+        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
+        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
+        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
+        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
+        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
+      </div>
+    </div>
     <div class="pagination" id="champ-pagination"></div>
     <div class="champ-rank" id="champ-rank"></div>
   </div>
 </div>
 
-<main id="schedule-root"></main>
+<main id="schedule-root">
+  <div class="sk-grid" id="schedule-sk-grid">
+    <div class="sk-card"><div class="sk-line w40" style="margin-bottom:12px"></div><div class="sk-row"><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div><div><div class="sk-line w40 h20"></div></div><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div></div><div class="sk-line full h12" style="margin-top:12px"></div></div>
+    <div class="sk-card"><div class="sk-line w40" style="margin-bottom:12px"></div><div class="sk-row"><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div><div><div class="sk-line w40 h20"></div></div><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div></div><div class="sk-line full h12" style="margin-top:12px"></div></div>
+    <div class="sk-card"><div class="sk-line w40" style="margin-bottom:12px"></div><div class="sk-row"><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div><div><div class="sk-line w40 h20"></div></div><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div></div><div class="sk-line full h12" style="margin-top:12px"></div></div>
+  </div>
+</main>
 
 <!-- COMMENTS -->
 <div class="comments-section" id="comments-section">
@@ -1398,6 +1424,7 @@ const CHAMPION_CANDIDATES = [
   'Algeria','Tunisia','Egypt','Ghana','Czechia','Sweden',
   'Saudi Arabia','Iran','Iraq','Qatar','Panama','Norway',
   'New Zealand','Austria','Scotland','Bosnia & Herzegovina','Cape Verde','Curaçao','Haiti',
+  'South Africa','Paraguay','Türkiye','Ivory Coast','Jordan',
 ];
 
 async function voteChampion(team) {

@@ -52,7 +52,7 @@ app.get('/api/scores', async (req, res) => {
   }
 });
 
-// ── Admin Reset: DELETE /api/admin/reset ──
+// ── Admin Reset: POST /api/admin/reset ──
 // Requires ADMIN_KEY in header. Deletes all Firestore data.
 app.post('/api/admin/reset', async (req, res) => {
   const key = req.headers['x-admin-key'];
@@ -78,6 +78,105 @@ app.post('/api/admin/reset', async (req, res) => {
   } catch (err) {
     console.error('Admin reset error:', err);
     res.status(500).json({ error: 'Reset failed: ' + err.message });
+  }
+});
+
+// ── Admin: GET /api/admin/comments ──
+// Returns all comments for admin management
+app.get('/api/admin/comments', async (req, res) => {
+  const key = req.headers['x-admin-key'];
+  if (!ADMIN_KEY || key !== ADMIN_KEY) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  if (!admin.apps.length) {
+    return res.status(500, 'Firebase Admin not configured');
+  }
+
+  try {
+    const db = admin.firestore();
+    const snap = await db.collection('comments').orderBy('timestamp', 'desc').limit(200).get();
+    const comments = [];
+    snap.forEach(doc => comments.push({ id: doc.id, ...doc.data() }));
+    res.json(comments);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin: DELETE /api/admin/comments/:id ──
+// Deletes any comment by ID
+app.delete('/api/admin/comments/:id', async (req, res) => {
+  const key = req.headers['x-admin-key'];
+  if (!ADMIN_KEY || key !== ADMIN_KEY) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  if (!admin.apps.length) {
+    return res.status(500, 'Firebase Admin not configured');
+  }
+
+  try {
+    const db = admin.firestore();
+    const commentId = req.params.id;
+    // Delete the comment
+    await db.collection('comments').doc(commentId).delete();
+    // Delete any replies
+    const replies = await db.collection('comments').where('parentId', '==', commentId).get();
+    const batch = db.batch();
+    replies.forEach(doc => batch.delete(doc.ref));
+    if (replies.size > 0) await batch.commit();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin: GET /api/admin/stats ──
+// Returns summary stats for the admin dashboard
+app.get('/api/admin/stats', async (req, res) => {
+  const key = req.headers['x-admin-key'];
+  if (!ADMIN_KEY || key !== ADMIN_KEY) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  if (!admin.apps.length) {
+    return res.status(500, 'Firebase Admin not configured');
+  }
+
+  try {
+    const db = admin.firestore();
+    const [commentsSnap, matchVotesSnap, champVotesSnap] = await Promise.all([
+      db.collection('comments').get(),
+      db.collection('match_votes').get(),
+      db.collection('champion_votes').get()
+    ]);
+
+    let totalMatchVotes = 0;
+    matchVotesSnap.forEach(doc => {
+      const d = doc.data();
+      totalMatchVotes += (d.votes_home || 0) + (d.votes_draw || 0) + (d.votes_away || 0);
+    });
+
+    let totalChampVotes = 0;
+    champVotesSnap.forEach(doc => {
+      totalChampVotes += doc.data().count || 0;
+    });
+
+    // Unique users from comments
+    const users = new Set();
+    commentsSnap.forEach(doc => {
+      const d = doc.data();
+      if (d.userId) users.add(d.userId);
+      if (d.name) users.add(d.name);
+    });
+
+    res.json({
+      totalComments: commentsSnap.size,
+      totalMatchVotes,
+      totalChampVotes,
+      totalVoteDocuments: matchVotesSnap.size,
+      uniqueUsers: users.size
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
