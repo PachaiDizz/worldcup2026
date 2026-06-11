@@ -1,5 +1,32 @@
 const express = require('express');
 const path = require('path');
+const https = require('https');
+
+// ── fetch polyfill for older Node (Render may use Node 16) ──
+if (!globalThis.fetch) {
+  globalThis.fetch = async (url, opts = {}) => {
+    const u = new URL(url);
+    return new Promise((resolve, reject) => {
+      const req = https.request({
+        hostname: u.hostname, path: u.pathname + u.search,
+        method: opts.method || 'GET',
+        headers: { ...opts.headers, 'Content-Length': opts.body ? Buffer.byteLength(opts.body) : 0 },
+      }, (res) => {
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          json: async () => JSON.parse(data),
+          text: async () => data,
+        }));
+      });
+      req.on('error', reject);
+      if (opts.body) req.write(opts.body);
+      req.end();
+    });
+  };
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
