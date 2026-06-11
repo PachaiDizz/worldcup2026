@@ -296,6 +296,7 @@
     .champ-rank-votes { color: var(--gold); font-weight: 600; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics-compat.js"></script>
 </head>
@@ -414,10 +415,9 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════════
-// API CONFIG
+// API CONFIG — proxied through server.js to hide the API key
 // ═══════════════════════════════════════════════════════════════════════════════
-const API_KEY   = 'fe60a460b0e145109061f8235801ed21';
-const API_BASE  = 'https://api.football-data.org/v4';
+const API_PROXY = '/api/scores';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FIREBASE
@@ -433,6 +433,7 @@ const firebaseConfig = {
   measurementId: "G-FDQXLKHH6X"
 };
 firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 const db = firebase.firestore();
 let analytics = null;
 try { analytics = firebase.analytics(); } catch(e) { console.warn('Analytics not available'); }
@@ -657,9 +658,7 @@ async function fetchScores() {
     const from = new Date(now.getTime() - 3 * 86400000).toISOString().split('T')[0];
     const to   = new Date(now.getTime() + 4 * 86400000).toISOString().split('T')[0];
 
-    const res = await fetch(`${API_BASE}/competitions/WC/matches?dateFrom=${from}&dateTo=${to}`, {
-      headers: { 'X-Auth-Token': API_KEY }
-    });
+    const res = await fetch(`${API_PROXY}?from=${from}&to=${to}`);
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -1331,9 +1330,7 @@ async function toggleStats(matchNo, key) {
     const match = MATCHES.find(m => m[0] === matchNo);
     const from = match[4].split('T')[0];
     const to = from;
-    const res = await fetch(`${API_BASE}/competitions/WC/matches?dateFrom=${from}&dateTo=${to}`, {
-      headers: { 'X-Auth-Token': API_KEY }
-    });
+    const res = await fetch(`${API_PROXY}?from=${from}&to=${to}`);
     if (!res.ok) throw new Error('API error');
     const data = await res.json();
     const apiMatch = (data.matches || []).find(m => {
@@ -1517,11 +1514,18 @@ async function renderChampionSection() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMMENTS (Firebase)
 // ═══════════════════════════════════════════════════════════════════════════════
-let myUserId = localStorage.getItem('wc26_uid');
-if (!myUserId) {
-  myUserId = 'u_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+let myUserId = null;
+
+// Sign in anonymously — Firebase gives us a verified UID
+auth.signInAnonymously().then(cred => {
+  myUserId = cred.user.uid;
   localStorage.setItem('wc26_uid', myUserId);
-}
+}).catch(e => {
+  console.warn('Anonymous auth failed:', e);
+  // Fallback to localStorage UID (won't pass security rules, but won't crash)
+  myUserId = localStorage.getItem('wc26_uid') || ('u_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36));
+  localStorage.setItem('wc26_uid', myUserId);
+});
 let replyTo = null;  // { id, name }
 
 function startReply(commentId, commentName) {
@@ -1770,42 +1774,35 @@ document.querySelector('footer').addEventListener('click', function() {
 });
 
 async function resetAllData() {
+  const adminKey = prompt('Enter admin key to reset all data:');
+  if (!adminKey) return;
   if (!confirm('⚠ Are you sure?\n\nThis will delete ALL:\n• Match votes\n• Champion votes\n• Comments\n\nThis cannot be undone!')) return;
   if (!confirm('Last chance! Really reset everything?')) return;
 
   showToast('Resetting data...');
   try {
-    // Delete all match_votes
-    const votes = await db.collection('match_votes').get();
-    const batch1 = db.batch();
-    votes.forEach(doc => batch1.delete(doc.ref));
-    await batch1.commit();
+    const res = await fetch('/api/admin/reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Key': adminKey
+      }
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Reset failed');
 
-    // Delete all champion_votes
-    const champs = await db.collection('champion_votes').get();
-    const batch2 = db.batch();
-    champs.forEach(doc => batch2.delete(doc.ref));
-    await batch2.commit();
-
-    // Delete all comments
-    const comments = await db.collection('comments').get();
-    const batch3 = db.batch();
-    comments.forEach(doc => batch3.delete(doc.ref));
-    await batch3.commit();
-
-    // Clear local storage
     localStorage.removeItem('wc26_votes');
     localStorage.removeItem('wc26_champ');
     votedMatches = {};
     votedChampion = null;
 
-    showToast('✅ All data reset!');
+    showToast('All data reset!');
     buildSchedule();
     renderChampionSection();
     loadComments();
   } catch(e) {
     console.error('Reset error:', e);
-    showToast('❌ Reset failed: ' + e.message);
+    showToast('Reset failed: ' + e.message);
   }
 }
 </script>

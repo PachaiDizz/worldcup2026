@@ -1,7 +1,13 @@
-[build]
-  publish = "."
-  command = ""
-
-[headers]
-  [[headers.values]]
-    Cache-Control = "public, max-age=3600"
+services:
+  - type: web
+    name: worldcup2026-tracker
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: FOOTBALL_API_KEY
+        sync: false
+      - key: ADMIN_KEY
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false

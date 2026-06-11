@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Match Votes ──
+    // Anyone authenticated can vote. No one can delete votes.
+    match /match_votes/{voteId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    // ── Champion Votes ──
+    // Anyone authenticated can vote. No one can delete votes.
+    match /champion_votes/{teamId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    // ── Comments ──
+    // Anyone authenticated can read and create comments.
+    // Only the author (same userId) can delete their own comment.
+    // No one can edit comments.
+    match /comments/{commentId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if false;
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.userId;
+    }
+  }
+}
