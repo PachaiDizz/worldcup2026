@@ -2,6 +2,20 @@ const express = require('express');
 const path = require('path');
 const admin = require('firebase-admin');
 
+// Polyfill fetch for older Node.js versions
+if (!globalThis.fetch) {
+  try {
+    const nodeFetch = require('node-fetch');
+    globalThis.fetch = nodeFetch;
+    globalThis.Headers = nodeFetch.Headers;
+    globalThis.Request = nodeFetch.Request;
+    globalThis.Response = nodeFetch.Response;
+    console.log('Using node-fetch polyfill');
+  } catch (e) {
+    console.error('No fetch available. Install node-fetch package.');
+  }
+}
+
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
@@ -28,6 +42,9 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
 } else {
   console.warn('WARNING: FIREBASE_SERVICE_ACCOUNT not set. Admin reset will not work.');
 }
+
+// ── DIAGNOSTIC: health check ──
+app.get('/ping', (req, res) => res.json({ pong: true, ok: true }));
 
 // ── API Proxy: /api/scores ──
 // Hides the API key from the browser. Client calls /api/scores?from=X&to=Y
