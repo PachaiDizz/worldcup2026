@@ -1515,16 +1515,18 @@ async function renderChampionSection() {
 // COMMENTS (Firebase)
 // ═══════════════════════════════════════════════════════════════════════════════
 let myUserId = null;
+let authReady = null;
 
 // Sign in anonymously — Firebase gives us a verified UID
-auth.signInAnonymously().then(cred => {
+authReady = auth.signInAnonymously().then(cred => {
   myUserId = cred.user.uid;
   localStorage.setItem('wc26_uid', myUserId);
+  return myUserId;
 }).catch(e => {
   console.warn('Anonymous auth failed:', e);
-  // Fallback to localStorage UID (won't pass security rules, but won't crash)
   myUserId = localStorage.getItem('wc26_uid') || ('u_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36));
   localStorage.setItem('wc26_uid', myUserId);
+  return myUserId;
 });
 let replyTo = null;  // { id, name }
 
@@ -1668,88 +1670,92 @@ fetchScores().then(() => {
   scheduleRefresh();
 });
 
-// Load Firebase data — REAL-TIME LISTENERS
-renderChampionSection();
-loadComments();
-
-// Real-time listener for match votes
-db.collection('match_votes').onSnapshot(snap => {
-  const votesMap = {};
-  snap.forEach(doc => { votesMap[doc.id] = doc.data(); });
-  for (const m of MATCHES) {
-    const k = matchKey(m[2], m[3], m[4]);
-    const el = document.getElementById('vres-' + m[0]);
-    if (!el) continue;
-    const d = votesMap[k] || { votes_home: 0, votes_draw: 0, votes_away: 0 };
-    const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
-    const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
-    const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
-    const ap = total > 0 ? 100 - hp - dp : 0;
-    el.innerHTML = `
-      <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
-      <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
-      <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-      ${total > 0 ? `<div class="winrate-bar">
-        <div class="winrate-seg home-seg" style="width:${hp}%"></div>
-        <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
-        <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-      </div>` : ''}
-    `;
-  }
+// Wait for anonymous auth before loading Firebase data
+authReady.then(() => {
+  initFirebaseListeners();
+  renderChampionSection();
 });
 
-// Real-time listener for champion votes
-db.collection('champion_votes').onSnapshot(snap => {
-  const counts = {};
-  snap.forEach(doc => { counts[doc.id] = doc.data().count || 0; });
-
-  const grid = document.getElementById('champ-grid');
-  const rank = document.getElementById('champ-rank');
-  if (!grid) return;
-
-  const sorted = [...CHAMPION_CANDIDATES].sort((a,b) => (counts[b]||0) - (counts[a]||0));
-  const total = sorted.length;
-  const totalPages = Math.ceil(total / CHAMPS_PER_PAGE);
-  if (champPage > totalPages) champPage = totalPages;
-  const startIdx = (champPage - 1) * CHAMPS_PER_PAGE;
-  const paged = sorted.slice(startIdx, startIdx + CHAMPS_PER_PAGE);
-
-  grid.innerHTML = paged.map(team => {
-    const c = counts[team] || 0;
-    const isVoted = votedChampion === team;
-    return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${team}')">
-      <div class="ch-top">${getFlagImg(team, 22)}<span class="ch-name">${team}</span></div>
-      <span class="ch-count">${c} vote${c!==1?'s':''}</span>
-    </button>`;
-  }).join('');
-
-  const allSorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).filter(([,cnt]) => cnt > 0).slice(0,10);
-  if (allSorted.length) {
-    rank.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Top Picks</div>' +
-      allSorted.map(([team, cnt], i) =>
-        `<div class="champ-rank-row"><span class="champ-rank-pos">${i+1}.</span><span class="champ-rank-team">${getFlagImg(team, 20)} ${team}</span><span class="champ-rank-votes">${cnt}</span></div>`
-      ).join('');
-  } else {
-    rank.innerHTML = '';
-  }
-});
-
-// Real-time listener for comments
-db.collection('comments').orderBy('timestamp', 'desc').limit(100).onSnapshot(snap => {
-  const list = document.getElementById('comments-list');
-  if (!list) return;
-  if (snap.empty) { list.innerHTML = '<div class="comments-empty">No comments yet — drop something! 😄</div>'; return; }
-  const all = [];
-  snap.forEach(doc => { all.push({ id: doc.id, ...doc.data() }); });
-  const topLevel = all.filter(c => !c.parentId);
-  const repliesMap = {};
-  all.filter(c => c.parentId).forEach(r => {
-    if (!repliesMap[r.parentId]) repliesMap[r.parentId] = [];
-    repliesMap[r.parentId].push(r);
+function initFirebaseListeners() {
+  // Real-time listener for match votes
+  db.collection('match_votes').onSnapshot(snap => {
+    const votesMap = {};
+    snap.forEach(doc => { votesMap[doc.id] = doc.data(); });
+    for (const m of MATCHES) {
+      const k = matchKey(m[2], m[3], m[4]);
+      const el = document.getElementById('vres-' + m[0]);
+      if (!el) continue;
+      const d = votesMap[k] || { votes_home: 0, votes_draw: 0, votes_away: 0 };
+      const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
+      const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
+      const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
+      const ap = total > 0 ? 100 - hp - dp : 0;
+      el.innerHTML = `
+        <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
+        <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
+        <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
+        ${total > 0 ? `<div class="winrate-bar">
+          <div class="winrate-seg home-seg" style="width:${hp}%"></div>
+          <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
+          <div class="winrate-seg away-seg" style="width:${ap}%"></div>
+        </div>` : ''}
+      `;
+    }
   });
-  list.innerHTML = '';
-  topLevel.forEach(c => { list.appendChild(buildCommentEl(c, repliesMap)); });
-});
+
+  // Real-time listener for champion votes
+  db.collection('champion_votes').onSnapshot(snap => {
+    const counts = {};
+    snap.forEach(doc => { counts[doc.id] = doc.data().count || 0; });
+
+    const grid = document.getElementById('champ-grid');
+    const rank = document.getElementById('champ-rank');
+    if (!grid) return;
+
+    const sorted = [...CHAMPION_CANDIDATES].sort((a,b) => (counts[b]||0) - (counts[a]||0));
+    const total = sorted.length;
+    const totalPages = Math.ceil(total / CHAMPS_PER_PAGE);
+    if (champPage > totalPages) champPage = totalPages;
+    const startIdx = (champPage - 1) * CHAMPS_PER_PAGE;
+    const paged = sorted.slice(startIdx, startIdx + CHAMPS_PER_PAGE);
+
+    grid.innerHTML = paged.map(team => {
+      const c = counts[team] || 0;
+      const isVoted = votedChampion === team;
+      return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${team}')">
+        <div class="ch-top">${getFlagImg(team, 22)}<span class="ch-name">${team}</span></div>
+        <span class="ch-count">${c} vote${c!==1?'s':''}</span>
+      </button>`;
+    }).join('');
+
+    const allSorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).filter(([,cnt]) => cnt > 0).slice(0,10);
+    if (allSorted.length) {
+      rank.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Top Picks</div>' +
+        allSorted.map(([team, cnt], i) =>
+          `<div class="champ-rank-row"><span class="champ-rank-pos">${i+1}.</span><span class="champ-rank-team">${getFlagImg(team, 20)} ${team}</span><span class="champ-rank-votes">${cnt}</span></div>`
+        ).join('');
+    } else {
+      rank.innerHTML = '';
+    }
+  });
+
+  // Real-time listener for comments
+  db.collection('comments').orderBy('timestamp', 'desc').limit(100).onSnapshot(snap => {
+    const list = document.getElementById('comments-list');
+    if (!list) return;
+    if (snap.empty) { list.innerHTML = '<div class="comments-empty">No comments yet — drop something! 😄</div>'; return; }
+    const all = [];
+    snap.forEach(doc => { all.push({ id: doc.id, ...doc.data() }); });
+    const topLevel = all.filter(c => !c.parentId);
+    const repliesMap = {};
+    all.filter(c => c.parentId).forEach(r => {
+      if (!repliesMap[r.parentId]) repliesMap[r.parentId] = [];
+      repliesMap[r.parentId].push(r);
+    });
+    list.innerHTML = '';
+    topLevel.forEach(c => { list.appendChild(buildCommentEl(c, repliesMap)); });
+  });
+}
 
 // Request notification permission on first user interaction
 document.addEventListener('click', function reqPerm() {
