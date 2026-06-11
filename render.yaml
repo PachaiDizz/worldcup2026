@@ -1,13 +1,12 @@
 services:
   - type: web
-    name: worldcup2026-tracker
+    name: worldcup2026
     env: node
+    plan: free
     buildCommand: npm install
-    startCommand: node server.js
+    startCommand: npm start
     envVars:
       - key: FOOTBALL_API_KEY
-        sync: false
-      - key: ADMIN_KEY
-        sync: false
-      - key: FIREBASE_SERVICE_ACCOUNT
-        sync: false
+        sync: false        # You set this manually in Render dashboard
+      - key: NODE_ENV
+        value: production
