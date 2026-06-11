@@ -59,6 +59,8 @@ const TEAM_MAP = {
   'Curacao': 'Curaçao',
   'Ivory Coast': 'Ivory Coast',
   'Côte d\'Ivoire': 'Ivory Coast',
+  'Turkey': 'Türkiye',
+  'Czech Republic': 'Czechia',
 };
 
 function normName(name) {
@@ -144,8 +146,8 @@ app.get('/api/scores', async (req, res) => {
           id: g.id || g._id,
           utcDate,
           status,
-          homeTeam: { name: normName(g.home_team?.name_en || g.home_team || '') },
-          awayTeam: { name: normName(g.away_team?.name_en || g.away_team || '') },
+          homeTeam: { name: normName(g.home_team_name_en || g.home_team?.name_en || g.home_team || '') },
+          awayTeam: { name: normName(g.away_team_name_en || g.away_team?.name_en || g.away_team || '') },
           score: {
             fullTime: { home: homeScore, away: awayScore },
             halfTime: { home: null, away: null }
