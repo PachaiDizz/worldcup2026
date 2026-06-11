@@ -1,187 +1,103 @@
 const express = require('express');
 const path = require('path');
-const https = require('https');
-
-// ── fetch polyfill for older Node (Render may use Node 16) ──
-if (!globalThis.fetch) {
-  globalThis.fetch = async (url, opts = {}) => {
-    const u = new URL(url);
-    return new Promise((resolve, reject) => {
-      const req = https.request({
-        hostname: u.hostname, path: u.pathname + u.search,
-        method: opts.method || 'GET',
-        headers: { ...opts.headers, 'Content-Length': opts.body ? Buffer.byteLength(opts.body) : 0 },
-      }, (res) => {
-        let data = '';
-        res.on('data', c => data += c);
-        res.on('end', () => resolve({
-          ok: res.statusCode >= 200 && res.statusCode < 300,
-          status: res.statusCode,
-          json: async () => JSON.parse(data),
-          text: async () => data,
-        }));
-      });
-      req.on('error', reject);
-      if (opts.body) req.write(opts.body);
-      req.end();
-    });
-  };
-}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const API_KEY = process.env.APISPORTS_KEY || '';
 
-const WC_API = 'https://worldcup26.ir';
-
-// ── Cache JWT token so we don't login on every request ──
-let jwtToken = null;
-let tokenExpiry = 0;
-
-async function getToken() {
-  if (jwtToken && Date.now() < tokenExpiry) return jwtToken;
-
-  // Try login first
-  const res = await fetch(`${WC_API}/auth/authenticate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: process.env.WC_EMAIL || '',
-      password: process.env.WC_PASSWORD || ''
-    })
-  });
-
-  if (!res.ok) {
-    // If login fails, try register
-    const reg = await fetch(`${WC_API}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'WorldCup2026Fan',
-        email: process.env.WC_EMAIL || '',
-        password: process.env.WC_PASSWORD || ''
-      })
-    });
-    if (!reg.ok) throw new Error('Auth failed on both login and register');
-    const regData = await reg.json();
-    jwtToken = regData.token;
-  } else {
-    const data = await res.json();
-    jwtToken = data.token;
-  }
-
-  // Tokens valid 84 days — cache for 80 days
-  tokenExpiry = Date.now() + 80 * 24 * 60 * 60 * 1000;
-  console.log('✅ worldcup26.ir token acquired');
-  return jwtToken;
-}
-
-// ── Team name map: worldcup26.ir → your index.html names ──
+// ── Team name map: api-football → your index.html names ──
 const TEAM_MAP = {
   'United States': 'USA',
   'Korea Republic': 'South Korea',
   'IR Iran': 'Iran',
-  'Bosnia-Herzegovina': 'Bosnia & Herzegovina',
   'Bosnia and Herzegovina': 'Bosnia & Herzegovina',
-  'Türkiye': 'Türkiye',
   'Curacao': 'Curaçao',
+  "Côte d'Ivoire": 'Ivory Coast',
   'Ivory Coast': 'Ivory Coast',
-  'Côte d\'Ivoire': 'Ivory Coast',
-  'Turkey': 'Türkiye',
-  'Czech Republic': 'Czechia',
 };
 
 function normName(name) {
   return TEAM_MAP[name] || name;
 }
 
-// ── In-memory cache for all games (refresh every 2 min) ──
-let gamesCache = null;
-let gamesCacheTime = 0;
-const CACHE_MS = 2 * 60 * 1000; // 2 minutes
+// ── In-memory cache (refresh every 2 min) ──
+let cache = null;
+let cacheTime = 0;
+const CACHE_MS = 2 * 60 * 1000;
 
-async function fetchAllGames() {
-  if (gamesCache && Date.now() - gamesCacheTime < CACHE_MS) return gamesCache;
+async function fetchFixtures(from, to) {
+  if (cache && Date.now() - cacheTime < CACHE_MS) return cache;
 
-  const token = await getToken();
-  const res = await fetch(`${WC_API}/get/games`, {
-    headers: { 'Authorization': `Bearer ${token}` }
+  if (!API_KEY) throw new Error('APISPORTS_KEY not set');
+
+  // Fetch a window of dates
+  const url = `https://v3.football.api-sports.io/fixtures?league=1&season=2026&from=${from}&to=${to}`;
+
+  const res = await fetch(url, {
+    headers: {
+      'x-apisports-key': API_KEY
+    }
   });
 
-  if (!res.ok) throw new Error(`worldcup26.ir /get/games returned ${res.status}`);
+  if (!res.ok) throw new Error(`api-football returned ${res.status}`);
   const data = await res.json();
 
-  gamesCache = data;
-  gamesCacheTime = Date.now();
-  return gamesCache;
+  if (data.errors && Object.keys(data.errors).length > 0) {
+    throw new Error(JSON.stringify(data.errors));
+  }
+
+  cache = data.response || [];
+  cacheTime = Date.now();
+  console.log(`✅ Fetched ${cache.length} fixtures from api-football`);
+  return cache;
 }
 
 // ── Serve static files ──
 app.use(express.static(path.join(__dirname)));
 
-// ── /api/scores — convert worldcup26.ir format to football-data.org format ──
-// so index.html doesn't need any changes
+// ── /api/scores ──
 app.get('/api/scores', async (req, res) => {
   try {
-    const games = await fetchAllGames();
-    const list = Array.isArray(games) ? games : (games.games || games.matches || []);
-
-    // Filter by date range if provided (from & to are YYYY-MM-DD)
     const { from, to } = req.query;
-    const fromMs = from ? new Date(from).getTime() : 0;
-    const toMs = to ? new Date(to + 'T23:59:59Z').getTime() : Infinity;
 
-    const matches = list
-      .filter(g => {
-        if (!g.local_date) return true;
-        // local_date format: "06/11/2026 13:00" or "June 11, 2026"
-        try {
-          let d;
-          if (g.local_date.includes('/')) {
-            // "06/11/2026 13:00" — MM/DD/YYYY HH:MM
-            const parts = g.local_date.split(' ')[0].split('/');
-            d = new Date(`${parts[2]}-${parts[0]}-${parts[1]}T${g.local_date.split(' ')[1] || '00:00'}:00Z`);
-          } else {
-            d = new Date(g.local_date);
+    const fixtures = await fetchFixtures(
+      from || new Date().toISOString().split('T')[0],
+      to   || new Date().toISOString().split('T')[0]
+    );
+
+    // Convert api-football format → football-data.org format (what index.html expects)
+    const matches = fixtures.map(f => {
+      const st = f.fixture.status.short; // NS, 1H, HT, 2H, FT, AET, PEN, etc.
+
+      const isLive = ['1H','2H','ET','BT','P','INT'].includes(st);
+      const isFinished = ['FT','AET','PEN'].includes(st);
+
+      let status = 'TIMED';
+      if (isFinished) status = 'FINISHED';
+      else if (isLive) status = 'IN_PLAY';
+      else if (st === 'HT') status = 'PAUSED';
+
+      const homeScore = (isLive || isFinished || st === 'HT')
+        ? (f.goals?.home ?? null) : null;
+      const awayScore = (isLive || isFinished || st === 'HT')
+        ? (f.goals?.away ?? null) : null;
+
+      return {
+        id: f.fixture.id,
+        utcDate: new Date(f.fixture.timestamp * 1000).toISOString(),
+        status,
+        homeTeam: { name: normName(f.teams.home.name) },
+        awayTeam: { name: normName(f.teams.away.name) },
+        score: {
+          fullTime: { home: homeScore, away: awayScore },
+          halfTime: {
+            home: f.score?.halftime?.home ?? null,
+            away: f.score?.halftime?.away ?? null
           }
-          return d.getTime() >= fromMs && d.getTime() <= toMs;
-        } catch { return true; }
-      })
-      .map(g => {
-        // Determine status
-        const fin = g.finished === true || g.finished === 'TRUE' || g.finished === 1;
-        const te = (g.time_elapsed || '').toLowerCase();
-        const inPlay = !fin && (te === 'inplay' || te === 'in_play' || te === 'live' || (te && te !== 'notstarted' && te !== 'not started'));
-
-        let status = 'TIMED';
-        if (fin) status = 'FINISHED';
-        else if (inPlay) status = 'IN_PLAY';
-
-        // Build utcDate from local_date
-        let utcDate = '';
-        try {
-          if (g.local_date && g.local_date.includes('/')) {
-            const [datePart, timePart] = g.local_date.split(' ');
-            const [mm, dd, yyyy] = datePart.split('/');
-            utcDate = `${yyyy}-${mm}-${dd}T${timePart || '00:00'}:00Z`;
-          }
-        } catch { utcDate = ''; }
-
-        const homeScore = fin || inPlay ? (g.home_score ?? null) : null;
-        const awayScore = fin || inPlay ? (g.away_score ?? null) : null;
-
-        return {
-          id: g.id || g._id,
-          utcDate,
-          status,
-          homeTeam: { name: normName(g.home_team_name_en || g.home_team?.name_en || g.home_team || '') },
-          awayTeam: { name: normName(g.away_team_name_en || g.away_team?.name_en || g.away_team || '') },
-          score: {
-            fullTime: { home: homeScore, away: awayScore },
-            halfTime: { home: null, away: null }
-          },
-          minute: g.time_elapsed && !fin ? g.time_elapsed : null
-        };
-      });
+        },
+        minute: isLive ? f.fixture.status.elapsed : null
+      };
+    });
 
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Cache-Control', 'no-store');
@@ -200,7 +116,5 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`✅ WorldCup2026 server running on port ${PORT}`);
+  console.log(`   API key: ${API_KEY ? '✔ set' : '✗ MISSING — set APISPORTS_KEY in Render env vars'}`);
 });
-
-// Pre-warm token on startup
-getToken().catch(e => console.warn('Token pre-warm failed:', e.message));
