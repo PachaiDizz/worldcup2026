@@ -140,6 +140,7 @@
     .flag-img { border-radius: 2px; object-fit: cover; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
     .flag-placeholder { background: var(--border); border-radius: 2px; display: inline-block; }
     .team-name { font-family: 'Oswald', sans-serif; font-size: 13px; font-weight: 600; text-align: center; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+    .team-score { color: var(--gold); font-weight: 700; }
     .vs-block { text-align: center; flex-shrink: 0; }
     .vs { font-family: 'Oswald', sans-serif; font-size: 13px; color: var(--muted); }
 
@@ -426,7 +427,7 @@
 </div>
 
 <footer>
-  ⚽ FIFA World Cup 2026™ · All times in <strong>Malaysia Time (MYT / UTC+8)</strong> · Live scores via football-data.org
+  ⚽ FIFA World Cup 2026™ · All times in <strong>Malaysia Time (MYT / UTC+8)</strong> · Scores via GitHub Gist
   <div style="margin-top:12px">
     <div id="admin-panel" style="display:none;margin-top:8px;background:var(--card);border:1px solid var(--red);border-radius:8px;padding:12px;max-width:400px;margin-left:auto;margin-right:auto">
       <div style="font-size:12px;color:var(--red);font-weight:600;margin-bottom:8px">⚠ Reset All Data</div>
@@ -436,7 +437,7 @@
     <!-- SCORE ADMIN PANEL -->
     <div id="score-admin-panel" style="display:none;margin-top:8px;background:var(--card);border:1px solid var(--gold);border-radius:8px;padding:12px;max-width:400px;margin-left:auto;margin-right:auto">
       <div style="font-size:12px;color:var(--gold);font-weight:600;margin-bottom:8px">⚽ Manual Score Update</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Enter match number and scores to override live data.</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Set scores locally (preview). Copy the JSON snippet shown to send to Hermes for Gist update.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
         <select id="score-match-select" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:'Inter',sans-serif;flex:1;min-width:120px">
           <option value="">-- Select Match --</option>
@@ -467,9 +468,9 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════════
-// API CONFIG — proxied through server.js to hide the API key
+// GIST CONFIG — paste your GitHub Gist raw URL below
 // ═══════════════════════════════════════════════════════════════════════════════
-const API_PROXY = '/api/scores';
+const GIST_URL = 'https://gist.githubusercontent.com/PachaiDizz/9c2cf105090550660922bf6126b15966/raw/gistfile1.txt';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FIREBASE
@@ -524,22 +525,7 @@ function getFlagImg(name, size) {
 }
 const getFlag = name => getFlagImg(name);
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// API TEAM NAME → LOCAL NAME  (football-data.org uses different names)
-// ═══════════════════════════════════════════════════════════════════════════════
-const API_TO_LOCAL = {
-  "Korea Republic": "South Korea",
-  "IR Iran":         "Iran",
-  "United States":   "USA",
-  "Czech Republic":  "Czechia",
-  "Bosnia and Herzegovina": "Bosnia & Herzegovina",
-  "Curaçao":         "Curaçao",
-};
-const LOCAL_TO_API = {};
-for (const [k,v] of Object.entries(API_TO_LOCAL)) LOCAL_TO_API[v] = k;
 
-function normalizeAPI(name) { return API_TO_LOCAL[name] || name; }
-function toAPIName(local)   { return LOCAL_TO_API[local] || local; }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MATCH DATA   [matchNo, group, home, away, utcISO, venue, stage]
@@ -683,10 +669,8 @@ const pad        = n   => String(n).padStart(2,'0');
 
 // Build lookup key:  "home|away|YYYY-MM-DD"  (all lowercase)
 function matchKey(home, away, utc) {
-  const h = normalizeAPI(home).toLowerCase();
-  const a = normalizeAPI(away).toLowerCase();
   const d = utc ? utc.split('T')[0] : '';
-  return `${h}|${a}|${d}`;
+  return `${home.toLowerCase()}|${away.toLowerCase()}|${d}`;
 }
 
 function showToast(msg) {
@@ -706,48 +690,51 @@ async function fetchScores() {
   const lbl  = document.getElementById('api-label');
 
   try {
-    const now  = new Date();
-    const from = new Date(now.getTime() - 3 * 86400000).toISOString().split('T')[0];
-    const to   = new Date(now.getTime() + 4 * 86400000).toISOString().split('T')[0];
+    if (!GIST_URL) {
+      dot.className = 'api-dot wait';
+      lbl.textContent = 'GIST_URL not configured — set it in the script';
+      fetching = false;
+      updateApiBar();
+      return;
+    }
 
-    const res = await fetch(`${API_PROXY}?from=${from}&to=${to}`);
-
+    const res = await fetch(GIST_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const data = await res.json();
+    const gistData = await res.json();
     apiData   = {};
     liveCount = 0;
 
-    for (const m of (data.matches || [])) {
-      const h = normalizeAPI(m.homeTeam.name);
-      const a = normalizeAPI(m.awayTeam.name);
-      const k = matchKey(h, a, m.utcDate);
+    for (const [matchNoStr, scoreData] of Object.entries(gistData)) {
+      const matchEntry = MATCHES.find(m => m[0] === parseInt(matchNoStr));
+      if (!matchEntry) continue;
 
-      const st = m.status;
+      const st = scoreData.status || 'TIMED';
       const isLiveNow = (st === 'IN_PLAY' || st === 'PAUSED' || st === 'EXTRA_TIME' || st === 'PENALTY_SHOOTOUT');
-      const isFinished = (st === 'FINISHED' || st === 'AWARDED');
+      const isFinished = (st === 'FINISHED');
 
       if (isLiveNow) liveCount++;
 
+      const k = matchKey(matchEntry[2], matchEntry[3], matchEntry[4]);
       apiData[k] = {
         status:    isLiveNow ? 'live' : isFinished ? 'finished' : 'scheduled',
         apiStatus: st,
-        homeScore: m.score?.fullTime?.home ?? null,
-        awayScore: m.score?.fullTime?.away ?? null,
-        minute:    m.minute ?? null,
-        halfHome:  m.score?.halfTime?.home ?? null,
-        halfAway:  m.score?.halfTime?.away ?? null,
+        homeScore: scoreData.homeScore ?? null,
+        awayScore: scoreData.awayScore ?? null,
+        minute:    scoreData.minute ?? null,
+        halfHome:  scoreData.halfHome ?? null,
+        halfAway:  scoreData.halfAway ?? null,
       };
     }
 
     dot.className = 'api-dot ok';
-    lbl.textContent = 'Live data connected';
+    lbl.textContent = 'Gist scores loaded';
     lastFetch = new Date();
 
   } catch (e) {
-    console.error('API error:', e);
+    console.error('Gist error:', e);
     dot.className = 'api-dot err';
-    lbl.textContent = 'API unavailable — schedule only';
+    lbl.textContent = 'Gist unavailable — schedule only';
   } finally {
     fetching = false;
     updateApiBar();
@@ -1009,15 +996,18 @@ function buildCard(m) {
 
   // ── Score / VS block ──
   let vsHTML;
-  if (hasScore && (live || fin)) {
-    vsHTML = `<div class="score-big${live?' live-pulse':''}">${hScore} – ${aScore}</div>`;
-    if (live && minute != null) vsHTML += `<div class="minute-tag">${minute}'</div>`;
-    if (apiSt === 'PAUSED' && halfH != null) vsHTML += `<div class="score-ht">HT ${halfH}–${halfA}</div>`;
-    if (apiSt === 'EXTRA_TIME') vsHTML += `<div class="score-ht">Extra Time</div>`;
-    if (apiSt === 'PENALTY_SHOOTOUT') vsHTML += `<div class="score-ht">Penalties</div>`;
-  } else if (live) {
-    vsHTML = `<div class="score-big live-pulse">LIVE</div>`;
+  if (live) {
+    vsHTML = `<div class="vs live-pulse">LIVE</div>`;
     if (minute != null) vsHTML += `<div class="minute-tag">${minute}'</div>`;
+  } else if (apiSt === 'PAUSED') {
+    vsHTML = `<div class="vs">HT</div>`;
+    if (halfH != null) vsHTML += `<div class="score-ht">${halfH}–${halfA} HT</div>`;
+  } else if (fin) {
+    vsHTML = `<div class="vs ft">FT</div>`;
+  } else if (apiSt === 'EXTRA_TIME') {
+    vsHTML = `<div class="vs">ET</div>`;
+  } else if (apiSt === 'PENALTY_SHOOTOUT') {
+    vsHTML = `<div class="vs">PEN</div>`;
   } else {
     vsHTML = `<div class="vs">VS</div>`;
   }
@@ -1042,9 +1032,6 @@ function buildCard(m) {
     <div class="vote-result" id="vres-${no}"></div>
   ` : '';
 
-  const statsBtn = (live || fin) && hasScore ? `<button class="stats-toggle" onclick="event.stopPropagation();toggleStats(${no},'${k}')">📊 Stats</button>` : '';
-  const statsHTML = `<div class="stats-panel" id="stats-${no}"></div>`;
-
   card.innerHTML = `
     <div class="card-top">
       <span class="group-badge">${groupLabel}</span>
@@ -1053,12 +1040,12 @@ function buildCard(m) {
     <div class="teams">
       <div class="team">
         <div class="flag">${tbd?'🏳️':getFlag(home)}</div>
-        <div class="team-name">${home}</div>
+        <div class="team-name">${home}${hasScore ? ` <span class="team-score">(${hScore})</span>` : ''}</div>
       </div>
       <div class="vs-block">${vsHTML}</div>
       <div class="team">
         <div class="flag">${tbd?'🏳️':getFlag(away)}</div>
-        <div class="team-name">${away}</div>
+        <div class="team-name">${away}${hasScore ? ` <span class="team-score">(${aScore})</span>` : ''}</div>
       </div>
     </div>
     ${tbd && !hasScore ? '<div class="tbd-note">Teams TBD based on previous round</div>' : ''}
@@ -1072,8 +1059,6 @@ function buildCard(m) {
       ${remindBtn}
     </div>
     ${voteHTML}
-    ${statsBtn}
-    ${statsHTML}
   `;
   return card;
 }
@@ -1359,82 +1344,7 @@ async function loadAllVoteResults() {
   } catch(e) { console.error('Vote load error:', e); }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MATCH STATS (API)
-// ═══════════════════════════════════════════════════════════════════════════════
-let matchStatsCache = {};
 
-async function toggleStats(matchNo, key) {
-  const panel = document.getElementById('stats-' + matchNo);
-  if (!panel) return;
-  if (panel.classList.contains('open')) { panel.classList.remove('open'); return; }
-
-  if (matchStatsCache[key]) {
-    panel.innerHTML = renderStatsHTML(matchStatsCache[key]);
-    panel.classList.add('open');
-    return;
-  }
-
-  panel.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:11px;padding:8px">Loading stats...</div>';
-  panel.classList.add('open');
-
-  try {
-    const match = MATCHES.find(m => m[0] === matchNo);
-    const from = match[4].split('T')[0];
-    const to = from;
-    const res = await fetch(`${API_PROXY}?from=${from}&to=${to}`);
-    if (!res.ok) throw new Error('API error');
-    const data = await res.json();
-    const apiMatch = (data.matches || []).find(m => {
-      const h = normalizeAPI(m.homeTeam.name);
-      const a = normalizeAPI(m.awayTeam.name);
-      return matchKey(h, a, m.utcDate) === key;
-    });
-    if (!apiMatch) { panel.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:11px;padding:8px">Stats not available</div>'; return; }
-
-    const homeStats = apiMatch.homeTeam.statistics || {};
-    const awayStats = apiMatch.awayTeam.statistics || {};
-    matchStatsCache[key] = { home: homeStats, away: awayStats };
-    panel.innerHTML = renderStatsHTML(matchStatsCache[key]);
-  } catch (e) {
-    panel.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:11px;padding:8px">Stats unavailable</div>';
-  }
-}
-
-function renderStatsHTML(stats) {
-  const labels = [
-    ['ball_possession', 'Possession'],
-    ['shots', 'Total Shots'],
-    ['shots_on_goal', 'Shots on Target'],
-    ['corner_kicks', 'Corners'],
-    ['fouls', 'Fouls'],
-    ['offsides', 'Offsides'],
-    ['yellow_cards', 'Yellow Cards'],
-    ['red_cards', 'Red Cards'],
-  ];
-  let html = '';
-  for (const [key, label] of labels) {
-    const hv = stats.home[key] ?? null;
-    const av = stats.away[key] ?? null;
-    if (hv === null && av === null) continue;
-    const h = hv || 0;
-    const a = av || 0;
-    const total = h + a;
-    const hPct = total > 0 ? Math.round((h / total) * 100) : 50;
-    const aPct = 100 - hPct;
-    html += `
-      <div class="stat-row">
-        <span class="stat-home-val">${h}</span>
-        <span class="stat-label">${label}</span>
-        <span class="stat-away-val">${a}</span>
-      </div>
-      <div class="stat-bar-wrap">
-        <div class="stat-bar home" style="width:${hPct}%"></div>
-        <div class="stat-bar away" style="width:${aPct}%"></div>
-      </div>`;
-  }
-  return html || '<div style="text-align:center;color:var(--muted);font-size:11px;padding:8px">No stats available</div>';
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CHAMPION VOTE (Firebase)
@@ -1740,6 +1650,17 @@ setInterval(updateClock, 1000);
 
 // Start API: fetch then schedule smart refresh
 fetchScores().then(() => {
+  // Default scores for completed matches (Gist data takes priority)
+  const defaults = [
+    ["Mexico", "South Africa", "2026-06-11T19:00:00Z", 2, 0],
+    ["South Korea", "Czechia", "2026-06-12T02:00:00Z", 2, 1],
+  ];
+  for (const [h, a, u, hs, as] of defaults) {
+    const k = matchKey(h, a, u);
+    if (!apiData[k]) {
+      apiData[k] = { status: 'finished', apiStatus: 'FINISHED', homeScore: hs, awayScore: as, minute: null, halfHome: null, halfAway: null };
+    }
+  }
   buildSchedule();
   scheduleRefresh();
 });
@@ -1943,7 +1864,7 @@ function scoreLog(msg) {
   if (el.children.length > 10) el.lastChild.remove();
 }
 
-async function setManualScore() {
+function setManualScore() {
   const matchNo = document.getElementById('score-match-select').value;
   const home = document.getElementById('score-home').value;
   const away = document.getElementById('score-away').value;
@@ -1952,58 +1873,46 @@ async function setManualScore() {
   if (!matchNo) { showToast('⚠ Select a match first'); return; }
   if (home === '' || away === '') { showToast('⚠ Enter both scores'); return; }
 
-  scoreLog(`Setting M${matchNo}: ${home}-${away} (${status})...`);
-
-  try {
-    const res = await fetch(`/api/admin/set-score?key=${ADMIN_KEY}&match=${matchNo}&home=${home}&away=${away}&status=${status}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed');
-
-    // Update local apiData so the card refreshes immediately
-    const matchEntry = MATCHES.find(m => m[0] === parseInt(matchNo));
-    if (matchEntry) {
-      const k = matchKey(matchEntry[2], matchEntry[3], matchEntry[4]);
-      apiData[k] = {
-        status: status === 'FINISHED' ? 'finished' : status === 'IN_PLAY' ? 'live' : status === 'PAUSED' ? 'finished' : 'scheduled',
-        apiStatus: status,
-        homeScore: parseInt(home),
-        awayScore: parseInt(away),
-        minute: status === 'IN_PLAY' ? 1 : null,
-        halfHome: null,
-        halfAway: null,
-        _manual: true
-      };
-    }
-
+  const matchEntry = MATCHES.find(m => m[0] === parseInt(matchNo));
+  if (matchEntry) {
+    const homeScore = parseInt(home);
+    const awayScore = parseInt(away);
+    const k = matchKey(matchEntry[2], matchEntry[3], matchEntry[4]);
+    apiData[k] = {
+      status: status === 'FINISHED' ? 'finished' : (status === 'IN_PLAY' || status === 'PAUSED') ? 'live' : 'scheduled',
+      apiStatus: status,
+      homeScore: homeScore,
+      awayScore: awayScore,
+      minute: status === 'IN_PLAY' ? 1 : null,
+      halfHome: null,
+      halfAway: null,
+      _manual: true
+    };
     buildSchedule();
-    scoreLog(`✅ Match ${matchNo} = ${home}-${away} (${status})`);
-    if (typeof updateCountdownSection === 'function') updateCountdownSection();
-  } catch (e) {
-    scoreLog('❌ Error: ' + e.message);
-    showToast('Score update failed: ' + e.message);
+
+    // Build Gist JSON snippet for Hermes
+    const gistEntry = { homeScore, awayScore, status };
+    if (status === 'IN_PLAY') gistEntry.minute = 1;
+    const gistJson = JSON.stringify({ [matchNo]: gistEntry }, null, 2);
+    const copyMsg = `📋 Copy this JSON and send to Hermes:\n\n${gistJson}\n\nOr paste directly into your Gist file.`;
+
+    scoreLog(`✅ M${matchNo} = ${homeScore}-${awayScore} (${status}) — refreshed locally`);
+    scoreLog(`📋 Gist JSON for Hermes: {\"${matchNo}\":${JSON.stringify(gistEntry)}}`);
+    showToast(copyMsg);
   }
 }
 
-async function clearManualScore() {
+function clearManualScore() {
   const matchNo = document.getElementById('score-match-select').value;
   if (!matchNo) { showToast('⚠ Select a match to clear'); return; }
 
-  try {
-    const res = await fetch(`/api/admin/clear-score?key=${ADMIN_KEY}&match=${matchNo}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed');
-
-    // Remove from local apiData
-    const matchEntry = MATCHES.find(m => m[0] === parseInt(matchNo));
-    if (matchEntry) {
-      const k = matchKey(matchEntry[2], matchEntry[3], matchEntry[4]);
-      delete apiData[k];
-    }
-
+  const matchEntry = MATCHES.find(m => m[0] === parseInt(matchNo));
+  if (matchEntry) {
+    const k = matchKey(matchEntry[2], matchEntry[3], matchEntry[4]);
+    delete apiData[k];
     buildSchedule();
-    scoreLog(`🗑 Cleared manual score for Match ${matchNo}`);
-  } catch (e) {
-    scoreLog('❌ Error: ' + e.message);
+    scoreLog(`🗑 Cleared local score for Match ${matchNo}`);
+    scoreLog(`📋 Send Hermes: delete {"${matchNo}":...} from Gist`);
   }
 }
 

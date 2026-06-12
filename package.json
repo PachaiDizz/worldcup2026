@@ -4,7 +4,7 @@
   "description": "FIFA World Cup 2026 Live Scores - Malaysia Time",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "echo v3 && node server.js"
   },
   "engines": {
     "node": ">=18"

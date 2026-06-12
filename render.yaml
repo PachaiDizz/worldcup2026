@@ -6,7 +6,5 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: FOOTBALL_API_KEY
-        sync: false        # You set this manually in Render dashboard
       - key: NODE_ENV
         value: production
