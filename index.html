@@ -698,7 +698,7 @@ async function fetchScores() {
       return;
     }
 
-    const res = await fetch(GIST_URL);
+    const res = await fetch(GIST_URL + '?_=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const gistData = await res.json();
