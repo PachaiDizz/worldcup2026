@@ -14,11 +14,16 @@ Dark-themed FIFA World Cup 2026 live scores & schedule tracker for Malaysian use
 - **48 qualified teams** in `CHAMPION_CANDIDATES` and `MATCHES` array
 - **Firebase**: Match votes, champion votes, comments with real-time listeners
 - **Auto-refresh**: Every 30s if live matches, 5min otherwise
+- **Scores embedded in team names** — removed separate `.score-big` box; scores now show as `Mexico (2)` directly in match cards
+- **Default fallback scores** for completed matches (Mexico 2–0 South Africa, South Korea 2–1 Czechia) if Gist has no data
+- **Admin panel** (`?admin=1`) for manual score preview with JSON snippet output for Hermes
+- **Removed floating "Final Scores" panel** — all scores consolidated into match cards
 
 ### Data Flow
 1. **Hermes** (Telegram bot) → writes score JSON to GitHub Gist via GitHub API
 2. **Static site** (`index.html`) → fetches `GIST_URL` on load and every refresh cycle
-3. **No external football API needed** — no API keys, no proxy server required
+3. **Admin Panel** (`?admin=1`) → preview scores locally, copy JSON snippet, send to Hermes
+4. **No external football API needed** — no API keys, no proxy server required
 
 ### Server.js
 - Stripped down to just serve static files
@@ -53,14 +58,14 @@ Authorization: Bearer {github_token}
 
 ## Pending Items / Known Issues
 
-- **Set `GIST_URL`** in `index.html` (search for `GIST_URL`) before deploying
 - **Firebase config exposed** — ensure Firestore security rules restrict writes
 - **XSS in onclick attributes** — team names injected unsafely into `onclick` strings
 - `.vote-result` CSS rules duplicated
 - Existing pre-update comments have no `userId` so delete button won't appear
 
 ### Next Steps
-1. Create a GitHub Gist with an empty `scores.json` `{}`
-2. Copy the raw URL and paste into `GIST_URL` in `index.html`
-3. Deploy to Render
-4. Set up Hermes to call the Gist API via Telegram commands
+1. ~~Create a GitHub Gist with an empty `scores.json` `{}`~~ ✅
+2. ~~Copy the raw URL and paste into `GIST_URL` in `index.html`~~ ✅
+3. ~~Deploy to Render~~ ✅
+4. ~~Set up Hermes to call the Gist API via Telegram commands~~ ✅
+5. [Optional] Add a direct "Push to Gist" button in admin panel (uses GitHub API token)
