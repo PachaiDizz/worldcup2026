@@ -170,3 +170,5 @@ app.listen(PORT, () => {
   console.log(`   API key: ${API_KEY ? '✔ set' : '✗ MISSING'}`);
   console.log(`   Admin key: ${ADMIN_KEY}`);
 });
+
+// Force redeploy marker: 2
