@@ -10,7 +10,7 @@ async function check() {
     html.includes('Jordan')
   );
 
-  const api = await fetch('https://worldcup2026-x6bv.onrender.com/api/scores?from=2026-06-09&to=2026-06-16');
+  const api = await fetch('https://worldcup2026-x6bv.onrender.com/api/ping');
   console.log('API status:', api.status);
   console.log('API body:', (await api.text()).slice(0, 300));
 }

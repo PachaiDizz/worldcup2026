@@ -253,11 +253,6 @@
     .vote-pct.home-pct { background: rgba(59,130,246,0.15); color: var(--blue); }
     .vote-pct.draw-pct { background: rgba(100,116,139,0.15); color: var(--muted); }
     .vote-pct.away-pct { background: rgba(239,68,68,0.15); color: var(--red); }
-    .vote-result { display: flex; gap: 4px; margin-top: 4px; }
-    .vote-pct { flex: 1; text-align: center; font-size: 10px; font-weight: 600; border-radius: 4px; padding: 3px; }
-    .vote-pct.home-pct { background: rgba(59,130,246,0.15); color: var(--blue); }
-    .vote-pct.draw-pct { background: rgba(100,116,139,0.15); color: var(--muted); }
-    .vote-pct.away-pct { background: rgba(239,68,68,0.15); color: var(--red); }
     .winrate-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 4px; gap: 1px; }
     .winrate-seg { height: 100%; transition: width .3s; }
     .winrate-seg.home-seg { background: var(--blue); }
@@ -654,6 +649,11 @@ let liveCount     = 0;
 let lastFetch     = null;
 let refreshTimer  = null;
 let fetching      = false;
+let lastDataKey   = '';
+
+function getApiDataKey() {
+  return JSON.stringify(apiData);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -759,8 +759,9 @@ function scheduleRefresh() {
   clearTimeout(refreshTimer);
   const ms = liveCount > 0 ? 30000 : 300000;   // 30s live · 5min idle
   refreshTimer = setTimeout(async () => {
+    const oldKey = getApiDataKey();
     await fetchScores();
-    buildSchedule();
+    if (getApiDataKey() !== oldKey) buildSchedule();
     scheduleRefresh();
   }, ms);
 }
@@ -811,7 +812,7 @@ function renderFavBar() {
   if (!favourites.length) { bar.style.display='none'; return; }
   bar.style.display='block';
   chips.innerHTML = favourites.map(t =>
-    `<button class="fav-chip active" onclick="toggleFav('${t}')">${getFlag(t)} ${t} ✕</button>`
+    `<button class="fav-chip active" onclick="toggleFav('${escapeAttr(t)}')">${getFlag(t)} ${t} ✕</button>`
   ).join('');
 }
 
@@ -835,7 +836,7 @@ function toggleReminder(matchNo, home, away, utcISO) {
     showToast('🔔 Alarm set! Phone will ring 15 & 5 min before kickoff');
   }
   // Update button state only
-  document.querySelectorAll(`[onclick*="toggleReminder(${matchNo},"]`).forEach(btn => {
+  document.querySelectorAll(`[data-reminder="${matchNo}"]`).forEach(btn => {
     btn.classList.toggle('reminded', reminders.includes(matchNo));
     btn.textContent = reminders.includes(matchNo) ? '🔔 Set' : '🔔 Remind';
   });
@@ -1018,16 +1019,16 @@ function buildCard(m) {
   else if (apiSt === 'PAUSED') badgeHTML = '<span class="ht-badge">HT</span>';
   else if (fin)            badgeHTML = '<span class="ft-badge">FT</span>';
 
-  const remindBtn = !past && !tbd ? `<button class="btn-action btn-remind ${isReminded?'reminded':''}" onclick="event.stopPropagation();toggleReminder(${no},'${home}','${away}','${utc}')">${isReminded?'🔔 Set':'🔔 Remind'}</button>` : '';
+  const remindBtn = !past && !tbd ? `<button class="btn-action btn-remind ${isReminded?'reminded':''}" data-reminder="${no}" onclick="event.stopPropagation();toggleReminder(${no},'${escapeAttr(home)}','${escapeAttr(away)}','${utc}')">${isReminded?'🔔 Set':'🔔 Remind'}</button>` : '';
 
-  const waBtn = `<button class="btn-action btn-wa" onclick="event.stopPropagation();shareWhatsApp('${home}','${away}','${utc}','${venue.replace(/'/g,"\\'")}')">📲 WhatsApp</button>`;
+  const waBtn = `<button class="btn-action btn-wa" onclick="event.stopPropagation();shareWhatsApp('${escapeAttr(home)}','${escapeAttr(away)}','${utc}','${escapeAttr(venue)}')">📲 WhatsApp</button>`;
 
   const voted = votedMatches[k];
   const voteHTML = !tbd && !past ? `
     <div class="vote-bar" id="vote-${no}">
-      <button class="vote-btn ${voted==='home'?'voted':''}" onclick="event.stopPropagation();voteMatch('${k}','home',${no},'${home}','${away}')">🏠 ${home}</button>
-      <button class="vote-btn ${voted==='draw'?'voted':''}" onclick="event.stopPropagation();voteMatch('${k}','draw',${no},'${home}','${away}')">🤝 Draw</button>
-      <button class="vote-btn ${voted==='away'?'voted':''}" onclick="event.stopPropagation();voteMatch('${k}','away',${no},'${home}','${away}')">🏠 ${away}</button>
+      <button class="vote-btn ${voted==='home'?'voted':''}" onclick="event.stopPropagation();voteMatch('${k}','home',${no},'${escapeAttr(home)}','${escapeAttr(away)}')">🏠 ${home}</button>
+      <button class="vote-btn ${voted==='draw'?'voted':''}" onclick="event.stopPropagation();voteMatch('${k}','draw',${no},'${escapeAttr(home)}','${escapeAttr(away)}')">🤝 Draw</button>
+      <button class="vote-btn ${voted==='away'?'voted':''}" onclick="event.stopPropagation();voteMatch('${k}','away',${no},'${escapeAttr(home)}','${escapeAttr(away)}')">🏠 ${away}</button>
     </div>
     <div class="vote-result" id="vres-${no}"></div>
   ` : '';
@@ -1204,17 +1205,33 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     buildSchedule();
   });
 });
-document.getElementById('search-input').addEventListener('input', e => {
+document.getElementById('search-input').addEventListener('input', debounce(e => {
   searchQuery = e.target.value.trim();
   currentPage = 1;
   if (searchQuery.length > 2) trackEvent('search', { query: searchQuery });
   buildSchedule();
-});
+}, 300));
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MATCH VOTES (Firebase)
 // ═══════════════════════════════════════════════════════════════════════════════
 let votedMatches = JSON.parse(localStorage.getItem('wc26_votes') || '{}');
+
+function buildVoteResultHTML(d) {
+  const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
+  const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
+  const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
+  const ap = total > 0 ? 100 - hp - dp : 0;
+  return `
+    <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
+    <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
+    <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
+    ${total > 0 ? `<div class="winrate-bar">
+      <div class="winrate-seg home-seg" style="width:${hp}%"></div>
+      <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
+      <div class="winrate-seg away-seg" style="width:${ap}%"></div>
+    </div>` : ''}`;
+}
 
 async function refreshVoteResult(key, matchNo) {
   const el = document.getElementById('vres-' + matchNo);
@@ -1222,19 +1239,7 @@ async function refreshVoteResult(key, matchNo) {
   try {
     const snap = await db.collection('match_votes').doc(key).get();
     const d = snap.exists ? snap.data() : { votes_home: 0, votes_draw: 0, votes_away: 0 };
-    const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
-    const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
-    const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
-    const ap = total > 0 ? 100 - hp - dp : 0;
-    el.innerHTML = `
-      <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
-      <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
-      <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-      ${total > 0 ? `<div class="winrate-bar">
-        <div class="winrate-seg home-seg" style="width:${hp}%"></div>
-        <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
-        <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-      </div>` : ''}`;
+    el.innerHTML = buildVoteResultHTML(d);
   } catch(e) { console.error('Vote refresh error:', e); }
 }
 
@@ -1293,55 +1298,6 @@ async function voteMatch(key, choice, matchNo, home, away) {
     const idx = choice === 'home' ? 0 : choice === 'draw' ? 1 : 2;
     if (bar.children[idx]) bar.children[idx].classList.add('voted');
   }
-}
-
-async function renderVoteResult(key, matchNo, home, away) {
-  const el = document.getElementById('vres-' + matchNo);
-  if (!el) return;
-  const snap = await db.collection('match_votes').doc(key).get();
-  let d = { votes_home: 0, votes_draw: 0, votes_away: 0 };
-  if (snap.exists) d = snap.data();
-  const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
-  const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
-  const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
-  const ap = total > 0 ? 100 - hp - dp : 0;
-  el.innerHTML = `
-    <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
-    <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
-    <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-    ${total > 0 ? `<div class="winrate-bar">
-      <div class="winrate-seg home-seg" style="width:${hp}%"></div>
-      <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
-      <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-    </div>` : ''}`;
-}
-
-async function loadAllVoteResults() {
-  try {
-    const snap = await db.collection('match_votes').get();
-    const votesMap = {};
-    snap.forEach(doc => { votesMap[doc.id] = doc.data(); });
-
-    for (const m of MATCHES) {
-      const k = matchKey(m[2], m[3], m[4]);
-      const el = document.getElementById('vres-' + m[0]);
-      if (!el) continue;
-      const d = votesMap[k] || { votes_home: 0, votes_draw: 0, votes_away: 0 };
-      const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
-      const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
-      const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
-      const ap = total > 0 ? 100 - hp - dp : 0;
-      el.innerHTML = `
-        <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
-        <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
-        <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-        ${total > 0 ? `<div class="winrate-bar">
-          <div class="winrate-seg home-seg" style="width:${hp}%"></div>
-          <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
-          <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-        </div>` : ''}`;
-    }
-  } catch(e) { console.error('Vote load error:', e); }
 }
 
 
@@ -1410,6 +1366,51 @@ async function voteChampion(team) {
   renderChampionSection();
 }
 
+function buildChampGridHTML(counts, totalVotes) {
+  const sorted = [...CHAMPION_CANDIDATES].sort((a,b) => (counts[b]||0) - (counts[a]||0));
+  const total = sorted.length;
+  const totalPages = Math.ceil(total / CHAMPS_PER_PAGE);
+  if (champPage > totalPages) champPage = totalPages;
+  const startIdx = (champPage - 1) * CHAMPS_PER_PAGE;
+  const paged = sorted.slice(startIdx, startIdx + CHAMPS_PER_PAGE);
+
+  return paged.map(team => {
+    const c = counts[team] || 0;
+    const pct = totalVotes > 0 ? Math.round((c / totalVotes) * 100) : 0;
+    const isVoted = votedChampion === team;
+    return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${escapeAttr(team)}')">
+      <div class="ch-top">${getFlagImg(team, 22)}<span class="ch-name">${team}</span></div>
+      <span class="ch-count">${c} vote${c!==1?'s':''} ${totalVotes > 0 ? '(' + pct + '%)' : ''}</span>
+    </button>`;
+  }).join('');
+}
+
+function buildChampLeaderboardHTML(counts, totalVotes) {
+  const allSorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).filter(([,cnt]) => cnt > 0).slice(0,15);
+  if (!allSorted.length) {
+    return '<div style="font-size:12px;color:var(--muted);font-style:italic;text-align:center;padding:12px">No votes yet — be the first!</div>';
+  }
+  const maxVotes = allSorted[0][1];
+  return `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Leaderboard</div>
+    <div style="font-size:11px;color:var(--subtext);margin-bottom:10px">${totalVotes} total vote${totalVotes!==1?'s':''} cast</div>
+    ${allSorted.map(([team, cnt], i) => {
+      const pct = totalVotes > 0 ? Math.round((cnt / totalVotes) * 100) : 0;
+      const barWidth = maxVotes > 0 ? Math.round((cnt / maxVotes) * 100) : 0;
+      return `<div class="champ-rank-row" style="flex-direction:column;align-items:stretch;gap:3px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="champ-rank-pos">${i+1}.</span>
+          <span class="champ-rank-team">${getFlagImg(team, 20)} ${team}</span>
+          <span class="champ-rank-votes">${cnt} (${pct}%)</span>
+        </div>
+        <div style="margin-left:28px;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div style="width:${barWidth}%;height:100%;background:var(--gold);border-radius:2px;transition:width .3s"></div>
+        </div>
+      </div>`;
+    }).join('')}
+  `;
+}
+
 async function renderChampionSection() {
   const grid = document.getElementById('champ-grid');
   const rank = document.getElementById('champ-rank');
@@ -1425,25 +1426,11 @@ async function renderChampionSection() {
     totalVotes += c;
   });
 
-  // Sort candidates by vote count (highest first)
-  const sorted = [...CHAMPION_CANDIDATES].sort((a,b) => (counts[b]||0) - (counts[a]||0));
-  const total = sorted.length;
-  const totalPages = Math.ceil(total / CHAMPS_PER_PAGE);
-  if (champPage > totalPages) champPage = totalPages;
-  const startIdx = (champPage - 1) * CHAMPS_PER_PAGE;
-  const paged = sorted.slice(startIdx, startIdx + CHAMPS_PER_PAGE);
-
-  grid.innerHTML = paged.map(team => {
-    const c = counts[team] || 0;
-    const pct = totalVotes > 0 ? Math.round((c / totalVotes) * 100) : 0;
-    const isVoted = votedChampion === team;
-    return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${team}')">
-      <div class="ch-top">${getFlagImg(team, 22)}<span class="ch-name">${team}</span></div>
-      <span class="ch-count">${c} vote${c!==1?'s':''} ${totalVotes > 0 ? '(' + pct + '%)' : ''}</span>
-    </button>`;
-  }).join('');
+  grid.innerHTML = buildChampGridHTML(counts, totalVotes);
 
   // Pagination
+  const total = CHAMPION_CANDIDATES.length;
+  const totalPages = Math.ceil(total / CHAMPS_PER_PAGE);
   if (totalPages > 1) {
     pag.innerHTML = '';
     const prevBtn = document.createElement('button');
@@ -1468,31 +1455,7 @@ async function renderChampionSection() {
     pag.innerHTML = '';
   }
 
-  // Leaderboard with percentages and bars
-  const allSorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).filter(([,cnt]) => cnt > 0).slice(0,15);
-  if (allSorted.length) {
-    const maxVotes = allSorted[0][1];
-    rank.innerHTML = `
-      <div style="font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Leaderboard</div>
-      <div style="font-size:11px;color:var(--subtext);margin-bottom:10px">${totalVotes} total vote${totalVotes!==1?'s':''} cast</div>
-      ${allSorted.map(([team, cnt], i) => {
-        const pct = totalVotes > 0 ? Math.round((cnt / totalVotes) * 100) : 0;
-        const barWidth = maxVotes > 0 ? Math.round((cnt / maxVotes) * 100) : 0;
-        return `<div class="champ-rank-row" style="flex-direction:column;align-items:stretch;gap:3px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span class="champ-rank-pos">${i+1}.</span>
-            <span class="champ-rank-team">${getFlagImg(team, 20)} ${team}</span>
-            <span class="champ-rank-votes">${cnt} (${pct}%)</span>
-          </div>
-          <div style="margin-left:28px;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
-            <div style="width:${barWidth}%;height:100%;background:var(--gold);border-radius:2px;transition:width .3s"></div>
-          </div>
-        </div>`;
-      }).join('')}
-    `;
-  } else {
-    rank.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic;text-align:center;padding:12px">No votes yet — be the first!</div>';
-  }
+  rank.innerHTML = buildChampLeaderboardHTML(counts, totalVotes);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1613,7 +1576,7 @@ function buildCommentEl(c, repliesMap) {
     <div class="comment-meta"><strong>${escapeHTML(c.name)}</strong> · ${timeStr}</div>
     <div class="comment-text">${escapeHTML(c.text)}</div>
     <div class="comment-actions">
-      <button class="comment-reply-btn" onclick="startReply('${c.id}','${escapeHTML(c.name).replace(/'/g,"\\'")}')">↩ Reply</button>
+      <button class="comment-reply-btn" onclick="startReply('${c.id}','${escapeAttr(c.name)}')">↩ Reply</button>
       ${isOwn ? `<button class="comment-delete-btn" onclick="deleteComment('${c.id}')">🗑 Delete</button>` : ''}
     </div>`;
 
@@ -1636,6 +1599,15 @@ function escapeHTML(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function debounce(fn, ms) {
+  let t;
+  return function(...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1681,20 +1653,7 @@ function initFirebaseListeners() {
       const el = document.getElementById('vres-' + m[0]);
       if (!el) continue;
       const d = votesMap[k] || { votes_home: 0, votes_draw: 0, votes_away: 0 };
-      const total = (d.votes_home||0) + (d.votes_draw||0) + (d.votes_away||0);
-      const hp = total > 0 ? Math.round(((d.votes_home||0)/total)*100) : 0;
-      const dp = total > 0 ? Math.round(((d.votes_draw||0)/total)*100) : 0;
-      const ap = total > 0 ? 100 - hp - dp : 0;
-      el.innerHTML = `
-        <div class="vote-pct home-pct">${total > 0 ? hp+'%' : '—'}</div>
-        <div class="vote-pct draw-pct">${total > 0 ? dp+'%' : '—'}</div>
-        <div class="vote-pct away-pct">${total > 0 ? ap+'%' : '—'}</div>
-        ${total > 0 ? `<div class="winrate-bar">
-          <div class="winrate-seg home-seg" style="width:${hp}%"></div>
-          <div class="winrate-seg draw-seg" style="width:${dp}%"></div>
-          <div class="winrate-seg away-seg" style="width:${ap}%"></div>
-        </div>` : ''}
-      `;
+      el.innerHTML = buildVoteResultHTML(d);
     }
   });
 
@@ -1712,48 +1671,8 @@ function initFirebaseListeners() {
     const rank = document.getElementById('champ-rank');
     if (!grid) return;
 
-    const sorted = [...CHAMPION_CANDIDATES].sort((a,b) => (counts[b]||0) - (counts[a]||0));
-    const total = sorted.length;
-    const totalPages = Math.ceil(total / CHAMPS_PER_PAGE);
-    if (champPage > totalPages) champPage = totalPages;
-    const startIdx = (champPage - 1) * CHAMPS_PER_PAGE;
-    const paged = sorted.slice(startIdx, startIdx + CHAMPS_PER_PAGE);
-
-    grid.innerHTML = paged.map(team => {
-      const c = counts[team] || 0;
-      const pct = totalVotes > 0 ? Math.round((c / totalVotes) * 100) : 0;
-      const isVoted = votedChampion === team;
-      return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${team}')">
-        <div class="ch-top">${getFlagImg(team, 22)}<span class="ch-name">${team}</span></div>
-        <span class="ch-count">${c} vote${c!==1?'s':''} ${totalVotes > 0 ? '(' + pct + '%)' : ''}</span>
-      </button>`;
-    }).join('');
-
-    // Rankings with percentages and bars
-    const allSorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).filter(([,cnt]) => cnt > 0).slice(0,15);
-    if (allSorted.length) {
-      const maxVotes = allSorted[0][1];
-      rank.innerHTML = `
-        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Leaderboard</div>
-        <div style="font-size:11px;color:var(--subtext);margin-bottom:10px">${totalVotes} total vote${totalVotes!==1?'s':''} cast</div>
-        ${allSorted.map(([team, cnt], i) => {
-          const pct = totalVotes > 0 ? Math.round((cnt / totalVotes) * 100) : 0;
-          const barWidth = maxVotes > 0 ? Math.round((cnt / maxVotes) * 100) : 0;
-          return `<div class="champ-rank-row" style="flex-direction:column;align-items:stretch;gap:3px">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span class="champ-rank-pos">${i+1}.</span>
-              <span class="champ-rank-team">${getFlagImg(team, 20)} ${team}</span>
-              <span class="champ-rank-votes">${cnt} (${pct}%)</span>
-            </div>
-            <div style="margin-left:28px;height:4px;background:var(--border);border-radius:2px;overflow:hidden">
-              <div style="width:${barWidth}%;height:100%;background:var(--gold);border-radius:2px;transition:width .3s"></div>
-            </div>
-          </div>`;
-        }).join('')}
-      `;
-    } else {
-      rank.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic;text-align:center;padding:12px">No votes yet — be the first!</div>';
-    }
+    grid.innerHTML = buildChampGridHTML(counts, totalVotes);
+    rank.innerHTML = buildChampLeaderboardHTML(counts, totalVotes);
   });
 
   // Real-time listener for comments
@@ -1832,8 +1751,6 @@ async function resetAllData() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN: MANUAL SCORE CONTROL
 // ═══════════════════════════════════════════════════════════════════════════════
-const ADMIN_KEY = 'wc26admin'; // must match server ADMIN_KEY
-
 function showAdminPanels() {
   const resetPanel = document.getElementById('admin-panel');
   const scorePanel = document.getElementById('score-admin-panel');

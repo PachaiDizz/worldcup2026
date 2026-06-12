@@ -3,7 +3,8 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_KEY = process.env.ADMIN_KEY || 'wc26admin';
+const ADMIN_KEY = process.env.ADMIN_KEY;
+if (!ADMIN_KEY) console.warn('WARNING: ADMIN_KEY env var not set. Admin endpoints will reject all requests.');
 
 app.use(express.json());
 
