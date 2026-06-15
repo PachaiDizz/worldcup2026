@@ -20,6 +20,13 @@ app.post('/api/admin/reset', (req, res) => {
   res.json({ ok: true, message: 'Reset acknowledged' });
 });
 
+app.post('/api/admin/verify', (req, res) => {
+  const adminKey = req.headers['x-admin-key'] || (req.body && req.body.key);
+  if (!ADMIN_KEY) return res.status(500).json({ error: 'ADMIN_KEY not configured on server' });
+  if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Invalid admin key' });
+  res.json({ ok: true, message: 'Admin verified' });
+});
+
 // ── Static files ──
 app.use(express.static(path.join(__dirname)));
 

@@ -642,6 +642,7 @@ let searchQuery  = '';
 let favFilter    = false;
 let currentPage  = 1;
 const MATCHES_PER_PAGE = 12;
+let initialPageSet = false;
 
 // API state
 let apiData       = {};    // key → { status, homeScore, awayScore, minute, halfHome, halfAway, apiStatus }
@@ -812,8 +813,11 @@ function renderFavBar() {
   if (!favourites.length) { bar.style.display='none'; return; }
   bar.style.display='block';
   chips.innerHTML = favourites.map(t =>
-    `<button class="fav-chip active" onclick="toggleFav('${escapeAttr(t)}')">${getFlag(t)} ${t} ✕</button>`
+    `<button class="fav-chip active" data-fav-team="${escapeAttr(t)}">${getFlag(t)} ${t} ✕</button>`
   ).join('');
+  chips.querySelectorAll('[data-fav-team]').forEach(btn => {
+    btn.addEventListener('click', () => toggleFav(btn.dataset.favTeam));
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1019,16 +1023,16 @@ function buildCard(m) {
   else if (apiSt === 'PAUSED') badgeHTML = '<span class="ht-badge">HT</span>';
   else if (fin)            badgeHTML = '<span class="ft-badge">FT</span>';
 
-  const remindBtn = !past && !tbd ? `<button class="btn-action btn-remind ${isReminded?'reminded':''}" data-reminder="${no}" onclick="event.stopPropagation();toggleReminder(${no},'${escapeAttr(home)}','${escapeAttr(away)}','${utc}')">${isReminded?'🔔 Set':'🔔 Remind'}</button>` : '';
+  const remindBtn = !past && !tbd ? `<button class="btn-action btn-remind ${isReminded?'reminded':''}" data-reminder="${no}" data-home="${escapeAttr(home)}" data-away="${escapeAttr(away)}" data-utc="${utc}">${isReminded?'🔔 Set':'🔔 Remind'}</button>` : '';
 
-  const waBtn = `<button class="btn-action btn-wa" onclick="event.stopPropagation();shareWhatsApp('${escapeAttr(home)}','${escapeAttr(away)}','${utc}','${escapeAttr(venue)}')">📲 WhatsApp</button>`;
+  const waBtn = `<button class="btn-action btn-wa" data-wa-home="${escapeAttr(home)}" data-wa-away="${escapeAttr(away)}" data-wa-utc="${utc}" data-wa-venue="${escapeAttr(venue)}">📲 WhatsApp</button>`;
 
   const voted = votedMatches[k];
   const voteHTML = !tbd && !past ? `
     <div class="vote-bar" id="vote-${no}">
-      <button class="vote-btn ${voted==='home'?'voted':''}" onclick="event.stopPropagation();voteMatch('${k}','home',${no},'${escapeAttr(home)}','${escapeAttr(away)}')">🏠 ${home}</button>
-      <button class="vote-btn ${voted==='draw'?'voted':''}" onclick="event.stopPropagation();voteMatch('${k}','draw',${no},'${escapeAttr(home)}','${escapeAttr(away)}')">🤝 Draw</button>
-      <button class="vote-btn ${voted==='away'?'voted':''}" onclick="event.stopPropagation();voteMatch('${k}','away',${no},'${escapeAttr(home)}','${escapeAttr(away)}')">🏠 ${away}</button>
+      <button class="vote-btn ${voted==='home'?'voted':''}" data-vote-key="${k}" data-vote-choice="home" data-vote-no="${no}">🏠 ${home}</button>
+      <button class="vote-btn ${voted==='draw'?'voted':''}" data-vote-key="${k}" data-vote-choice="draw" data-vote-no="${no}">🤝 Draw</button>
+      <button class="vote-btn ${voted==='away'?'voted':''}" data-vote-key="${k}" data-vote-choice="away" data-vote-no="${no}">🏠 ${away}</button>
     </div>
     <div class="vote-result" id="vres-${no}"></div>
   ` : '';
@@ -1061,6 +1065,25 @@ function buildCard(m) {
     </div>
     ${voteHTML}
   `;
+
+  card.querySelector('[data-wa-home]')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const b = e.currentTarget;
+    shareWhatsApp(b.dataset.waHome, b.dataset.waAway, b.dataset.waUtc, b.dataset.waVenue);
+  });
+  card.querySelector('[data-reminder]')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const b = e.currentTarget;
+    toggleReminder(parseInt(b.dataset.reminder), b.dataset.home, b.dataset.away, b.dataset.utc);
+  });
+  card.querySelectorAll('[data-vote-key]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const b = e.currentTarget;
+      voteMatch(b.dataset.voteKey, b.dataset.voteChoice, parseInt(b.dataset.voteNo));
+    });
+  });
+
   return card;
 }
 
@@ -1118,6 +1141,17 @@ function buildSchedule() {
   if (!filtered.length) {
     root.innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px">No matches found.</p>';
     return;
+  }
+
+  // Auto-navigate to page with today's or next upcoming match (first load only)
+  if (!initialPageSet) {
+    initialPageSet = true;
+    const now = Date.now();
+    const targetMatch = filtered.find(m => new Date(m[4]).getTime() + 7200000 > now);
+    if (targetMatch) {
+      const idx = filtered.indexOf(targetMatch);
+      currentPage = Math.floor(idx / MATCHES_PER_PAGE) + 1;
+    }
   }
 
   // Pagination
@@ -1378,7 +1412,7 @@ function buildChampGridHTML(counts, totalVotes) {
     const c = counts[team] || 0;
     const pct = totalVotes > 0 ? Math.round((c / totalVotes) * 100) : 0;
     const isVoted = votedChampion === team;
-    return `<button class="champ-btn ${isVoted?'voted':''}" onclick="voteChampion('${escapeAttr(team)}')">
+    return `<button class="champ-btn ${isVoted?'voted':''}" data-champ-team="${escapeAttr(team)}">
       <div class="ch-top">${getFlagImg(team, 22)}<span class="ch-name">${team}</span></div>
       <span class="ch-count">${c} vote${c!==1?'s':''} ${totalVotes > 0 ? '(' + pct + '%)' : ''}</span>
     </button>`;
@@ -1576,9 +1610,18 @@ function buildCommentEl(c, repliesMap) {
     <div class="comment-meta"><strong>${escapeHTML(c.name)}</strong> · ${timeStr}</div>
     <div class="comment-text">${escapeHTML(c.text)}</div>
     <div class="comment-actions">
-      <button class="comment-reply-btn" onclick="startReply('${c.id}','${escapeAttr(c.name)}')">↩ Reply</button>
-      ${isOwn ? `<button class="comment-delete-btn" onclick="deleteComment('${c.id}')">🗑 Delete</button>` : ''}
+      <button class="comment-reply-btn" data-reply-id="${c.id}" data-reply-name="${escapeAttr(c.name)}">↩ Reply</button>
+      ${isOwn ? `<button class="comment-delete-btn" data-delete-id="${c.id}">🗑 Delete</button>` : ''}
     </div>`;
+
+  div.querySelector('[data-reply-id]')?.addEventListener('click', e => {
+    const b = e.currentTarget;
+    startReply(b.dataset.replyId, b.dataset.replyName);
+  });
+  div.querySelector('[data-delete-id]')?.addEventListener('click', e => {
+    const b = e.currentTarget;
+    deleteComment(b.dataset.deleteId);
+  });
 
   const replies = repliesMap[c.id] || [];
   if (replies.length) {
@@ -1622,17 +1665,6 @@ setInterval(updateClock, 1000);
 
 // Start API: fetch then schedule smart refresh
 fetchScores().then(() => {
-  // Default scores for completed matches (Gist data takes priority)
-  const defaults = [
-    ["Mexico", "South Africa", "2026-06-11T19:00:00Z", 2, 0],
-    ["South Korea", "Czechia", "2026-06-12T02:00:00Z", 2, 1],
-  ];
-  for (const [h, a, u, hs, as] of defaults) {
-    const k = matchKey(h, a, u);
-    if (!apiData[k]) {
-      apiData[k] = { status: 'finished', apiStatus: 'FINISHED', homeScore: hs, awayScore: as, minute: null, halfHome: null, halfAway: null };
-    }
-  }
   buildSchedule();
   scheduleRefresh();
 });
@@ -1671,7 +1703,10 @@ function initFirebaseListeners() {
     const rank = document.getElementById('champ-rank');
     if (!grid) return;
 
-    grid.innerHTML = buildChampGridHTML(counts, totalVotes);
+  grid.innerHTML = buildChampGridHTML(counts, totalVotes);
+  grid.querySelectorAll('[data-champ-team]').forEach(btn => {
+    btn.addEventListener('click', () => voteChampion(btn.dataset.champTeam));
+  });
     rank.innerHTML = buildChampLeaderboardHTML(counts, totalVotes);
   });
 
@@ -1716,7 +1751,7 @@ document.querySelector('footer').addEventListener('click', function() {
 });
 
 async function resetAllData() {
-  const adminKey = prompt('Enter admin key to reset all data:');
+  const adminKey = sessionStorage.getItem('wc26_admin_key') || prompt('Enter admin key to reset all data:');
   if (!adminKey) return;
   if (!confirm('⚠ Are you sure?\n\nThis will delete ALL:\n• Match votes\n• Champion votes\n• Comments\n\nThis cannot be undone!')) return;
   if (!confirm('Last chance! Really reset everything?')) return;
@@ -1751,12 +1786,33 @@ async function resetAllData() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN: MANUAL SCORE CONTROL
 // ═══════════════════════════════════════════════════════════════════════════════
-function showAdminPanels() {
-  const resetPanel = document.getElementById('admin-panel');
-  const scorePanel = document.getElementById('score-admin-panel');
-  if (resetPanel) resetPanel.style.display = '';
-  if (scorePanel) scorePanel.style.display = '';
+async function showAdminPanels() {
+  const adminKey = prompt('Enter admin key:');
+  if (!adminKey) return;
+
+  try {
+    const res = await fetch('/api/admin/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Key': adminKey
+      }
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      showToast('❌ ' + (err.error || 'Invalid admin key'));
+      return;
+    }
+  } catch (e) {
+    showToast('❌ Could not verify admin key');
+    return;
+  }
+
+  sessionStorage.setItem('wc26_admin_key', adminKey);
+  document.getElementById('admin-panel').style.display = '';
+  document.getElementById('score-admin-panel').style.display = '';
   populateMatchSelect();
+  showToast('✅ Admin access granted');
 }
 
 function populateMatchSelect() {
