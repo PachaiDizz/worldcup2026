@@ -412,11 +412,11 @@
   <div class="comment-form">
     <div class="reply-indicator" id="reply-indicator" style="display:none">
       <span>↩ Replying to <strong id="reply-to-name"></strong></span>
-      <button class="cancel-reply" onclick="cancelReply()">✕</button>
+      <button class="cancel-reply" data-action="cancel-reply">✕</button>
     </div>
     <input id="comment-name" type="text" placeholder="Your name" maxlength="30" />
     <textarea id="comment-text" placeholder="Say something fun..." maxlength="300"></textarea>
-    <button class="btn-submit" onclick="submitComment()">Send</button>
+    <button class="btn-submit" data-action="submit-comment">Send</button>
   </div>
   <div id="comments-list"></div>
 </div>
@@ -427,7 +427,7 @@
     <div id="admin-panel" style="display:none;margin-top:8px;background:var(--card);border:1px solid var(--red);border-radius:8px;padding:12px;max-width:400px;margin-left:auto;margin-right:auto">
       <div style="font-size:12px;color:var(--red);font-weight:600;margin-bottom:8px">⚠ Reset All Data</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px">This will delete all match votes, champion votes, and comments. Cannot be undone.</div>
-      <button onclick="resetAllData()" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 Reset Everything</button>
+      <button data-action="reset-all" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 Reset Everything</button>
     </div>
     <!-- SCORE ADMIN PANEL -->
     <div id="score-admin-panel" style="display:none;margin-top:8px;background:var(--card);border:1px solid var(--gold);border-radius:8px;padding:12px;max-width:400px;margin-left:auto;margin-right:auto">
@@ -450,8 +450,8 @@
         </select>
       </div>
       <div style="display:flex;gap:6px">
-        <button onclick="setManualScore()" style="background:var(--gold);color:#000;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">⚡ Set Score</button>
-        <button onclick="clearManualScore()" style="background:var(--border);color:var(--subtext);border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 Clear</button>
+        <button data-action="set-score" style="background:var(--gold);color:#000;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">⚡ Set Score</button>
+        <button data-action="clear-score" style="background:var(--border);color:var(--subtext);border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif">🗑 Clear</button>
       </div>
       <div id="score-admin-log" style="margin-top:8px;font-size:11px;color:var(--muted);font-family:'Inter',sans-serif;max-height:60px;overflow-y:auto"></div>
     </div>
@@ -770,21 +770,34 @@ function scheduleRefresh() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // COUNTDOWN
 // ═══════════════════════════════════════════════════════════════════════════════
+// Cache countdown + clock nodes once (avoid getElementById every second)
+const cdNodes = {
+  name: document.getElementById('cd-match-name'),
+  d:    document.getElementById('cd-d'),
+  h:    document.getElementById('cd-h'),
+  m:    document.getElementById('cd-m'),
+  s:    document.getElementById('cd-s'),
+};
+const clockNodes = {
+  time: document.getElementById('myt-clock'),
+  date: document.getElementById('myt-date'),
+};
+
 function updateCountdown() {
   const now = Date.now();
   const next = MATCHES.filter(m => new Date(m[4]).getTime() > now)
                       .sort((a,b) => new Date(a[4])-new Date(b[4]))[0];
   if (!next) {
-    document.getElementById('cd-match-name').textContent = '🏆 Tournament has ended!';
+    cdNodes.name.textContent = '🏆 Tournament has ended!';
     return;
   }
   const diff = new Date(next[4]).getTime() - now;
-  document.getElementById('cd-match-name').innerHTML =
+  cdNodes.name.innerHTML =
     `<strong>${next[2]}</strong> vs <strong>${next[3]}</strong> &nbsp;·&nbsp; ${fmtMYT(next[4])} MYT`;
-  document.getElementById('cd-d').textContent = pad(Math.floor(diff/86400000));
-  document.getElementById('cd-h').textContent = pad(Math.floor((diff%86400000)/3600000));
-  document.getElementById('cd-m').textContent = pad(Math.floor((diff%3600000)/60000));
-  document.getElementById('cd-s').textContent = pad(Math.floor((diff%60000)/1000));
+  cdNodes.d.textContent = pad(Math.floor(diff/86400000));
+  cdNodes.h.textContent = pad(Math.floor((diff%86400000)/3600000));
+  cdNodes.m.textContent = pad(Math.floor((diff%3600000)/60000));
+  cdNodes.s.textContent = pad(Math.floor((diff%60000)/1000));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -792,11 +805,12 @@ function updateCountdown() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function updateClock() {
   const now = new Date();
-  document.getElementById('myt-clock').textContent =
+  clockNodes.time.textContent =
     now.toLocaleTimeString('en-MY',{timeZone:'Asia/Kuala_Lumpur',hour12:false});
-  document.getElementById('myt-date').textContent =
+  clockNodes.date.textContent =
     now.toLocaleDateString('en-MY',{timeZone:'Asia/Kuala_Lumpur',weekday:'long',day:'numeric',month:'long',year:'numeric'});
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FAVOURITES
@@ -1207,7 +1221,10 @@ function buildSchedule() {
     prevBtn.className = 'page-btn';
     prevBtn.textContent = '← Prev';
     prevBtn.disabled = currentPage === 1;
-    prevBtn.onclick = () => { currentPage--; buildSchedule(); window.scrollTo({top: root.offsetTop - 20, behavior: 'smooth'}); };
+    prevBtn.addEventListener('click', () => {
+      currentPage--; buildSchedule();
+      window.scrollTo({ top: root.offsetTop - 20, behavior: 'smooth' });
+    });
     pag.appendChild(prevBtn);
 
     const info = document.createElement('span');
@@ -1219,7 +1236,10 @@ function buildSchedule() {
     nextBtn.className = 'page-btn';
     nextBtn.textContent = 'Next →';
     nextBtn.disabled = currentPage === totalPages;
-    nextBtn.onclick = () => { currentPage++; buildSchedule(); window.scrollTo({top: root.offsetTop - 20, behavior: 'smooth'}); };
+    nextBtn.addEventListener('click', () => {
+      currentPage++; buildSchedule();
+      window.scrollTo({ top: root.offsetTop - 20, behavior: 'smooth' });
+    });
     pag.appendChild(nextBtn);
 
     root.appendChild(pag);
@@ -1471,7 +1491,7 @@ async function renderChampionSection() {
     prevBtn.className = 'page-btn';
     prevBtn.textContent = '← Prev';
     prevBtn.disabled = champPage === 1;
-    prevBtn.onclick = () => { champPage--; renderChampionSection(); };
+    prevBtn.addEventListener('click', () => { champPage--; renderChampionSection(); });
     pag.appendChild(prevBtn);
 
     const info = document.createElement('span');
@@ -1483,7 +1503,7 @@ async function renderChampionSection() {
     nextBtn.className = 'page-btn';
     nextBtn.textContent = 'Next →';
     nextBtn.disabled = champPage === totalPages;
-    nextBtn.onclick = () => { champPage++; renderChampionSection(); };
+    nextBtn.addEventListener('click', () => { champPage++; renderChampionSection(); });
     pag.appendChild(nextBtn);
   } else {
     pag.innerHTML = '';
@@ -1747,6 +1767,19 @@ document.querySelector('footer').addEventListener('click', function() {
     footerClicks = 0;
     const panel = document.getElementById('admin-panel');
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  }
+});
+
+// Delegated handler for static data-action buttons (comment form + admin panel)
+document.addEventListener('click', e => {
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  if (!action) return;
+  switch (action) {
+    case 'cancel-reply':  cancelReply(); break;
+    case 'submit-comment': submitComment(); break;
+    case 'reset-all':      resetAllData(); break;
+    case 'set-score':      setManualScore(); break;
+    case 'clear-score':    clearManualScore(); break;
   }
 });
 
