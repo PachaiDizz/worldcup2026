@@ -301,6 +301,33 @@
     .sk-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .sk-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
     @keyframes shimmer { 0% { opacity: 0.3; } 50% { opacity: 0.6; } 100% { opacity: 0.3; } }
+
+    /* ── TABS ── */
+    .tabs { display: flex; justify-content: center; gap: 4px; max-width: 1100px; margin: 24px auto 0; padding: 0 20px; border-bottom: 1px solid var(--border); }
+    .tab-btn { background: none; border: none; color: var(--muted); font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; padding: 10px 18px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .2s, border-color .2s; }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+    /* ── STANDINGS ── */
+    .standings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; max-width: 1100px; margin: 16px auto 0; padding: 0 20px; }
+    .group-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+    .group-card .gc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .group-card .gc-title { font-family: 'Oswald', sans-serif; font-size: 16px; color: var(--gold); letter-spacing: .5px; }
+    .group-card .gc-meta { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .standings-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .standings-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; padding: 4px 2px; text-align: center; }
+    .standings-table th.pos { text-align: left; width: 22px; }
+    .standings-table th.team { text-align: left; }
+    .standings-table td { padding: 5px 2px; border-top: 1px solid var(--border); text-align: center; color: var(--text); }
+    .standings-table td.pos { color: var(--muted); font-weight: 600; text-align: left; width: 22px; }
+    .standings-table td.team { text-align: left; display: flex; align-items: center; gap: 6px; }
+    .standings-table td.team .flag-img { width: 18px; height: 12px; object-fit: cover; border-radius: 2px; }
+    .standings-table td.team .flag-placeholder { width: 18px; height: 12px; background: var(--border); border-radius: 2px; display: inline-block; }
+    .standings-table td.pts { font-weight: 700; color: var(--gold); }
+    .standings-table tr.qualify td { background: rgba(34,197,94,0.08); }
+    .standings-table tr.qualify td.pos { color: var(--green); }
+    .standings-table tr.qualify td.team strong::after { content: ' ✓'; color: var(--green); font-size: 11px; }
+    .standings-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 24px; font-style: italic; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -376,6 +403,12 @@
   </div>
 </div>
 
+<!-- TABS -->
+<div class="tabs" role="tablist">
+  <button class="tab-btn active" role="tab" data-tab="schedule" aria-selected="true">📅 Schedule</button>
+  <button class="tab-btn" role="tab" data-tab="standings" aria-selected="false">📊 Group Standings</button>
+</div>
+
 <!-- CHAMPION VOTE -->
 <div class="champ-section" id="champ-section">
   <div class="champ-inner">
@@ -395,6 +428,7 @@
   </div>
 </div>
 
+<div id="schedule-pane" class="tab-pane">
 <main id="schedule-root">
   <div class="sk-grid" id="schedule-sk-grid">
     <div class="sk-card"><div class="sk-line w40" style="margin-bottom:12px"></div><div class="sk-row"><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div><div><div class="sk-line w40 h20"></div></div><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div></div><div class="sk-line full h12" style="margin-top:12px"></div></div>
@@ -402,6 +436,13 @@
     <div class="sk-card"><div class="sk-line w40" style="margin-bottom:12px"></div><div class="sk-row"><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div><div><div class="sk-line w40 h20"></div></div><div class="sk-col"><span class="sk-flag"></span><span class="sk-line w80 h12"></span></div></div><div class="sk-line full h12" style="margin-top:12px"></div></div>
   </div>
 </main>
+</div>
+
+<div id="standings-pane" class="tab-pane" style="display:none">
+  <div class="standings-grid" id="standings-grid">
+    <div class="standings-empty">Standings will appear once matches are played.</div>
+  </div>
+</div>
 
 <!-- COMMENTS -->
 <div class="comments-section" id="comments-section">
@@ -762,7 +803,11 @@ function scheduleRefresh() {
   refreshTimer = setTimeout(async () => {
     const oldKey = getApiDataKey();
     await fetchScores();
-    if (getApiDataKey() !== oldKey) buildSchedule();
+    if (getApiDataKey() !== oldKey) {
+      buildSchedule();
+      // Keep the Standings tab fresh if the user has it open
+      if (document.getElementById('standings-pane').style.display !== 'none') renderStandings();
+    }
     scheduleRefresh();
   }, ms);
 }
@@ -1259,6 +1304,21 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     buildSchedule();
   });
 });
+
+// ── Tab switching ──
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+    });
+    document.getElementById('schedule-pane').style.display = (tab === 'schedule') ? '' : 'none';
+    document.getElementById('standings-pane').style.display = (tab === 'standings') ? '' : 'none';
+    if (tab === 'standings') renderStandings();
+    trackEvent('tab_switch', { tab });
+  });
+});
 document.getElementById('search-input').addEventListener('input', debounce(e => {
   searchQuery = e.target.value.trim();
   currentPage = 1;
@@ -1295,6 +1355,115 @@ async function refreshVoteResult(key, matchNo) {
     const d = snap.exists ? snap.data() : { votes_home: 0, votes_draw: 0, votes_away: 0 };
     el.innerHTML = buildVoteResultHTML(d);
   } catch(e) { console.error('Vote refresh error:', e); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GROUP STANDINGS  (computed client-side from MATCHES + apiData)
+// ═══════════════════════════════════════════════════════════════════════════════
+const GROUP_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+
+// Build per-group table rows from the static MATCHES array + Gist scores (apiData)
+function computeStandings() {
+  // Seed one row per known team (so the table is full even before matches are played)
+  const groups = {};   // groupLetter -> { team: { p,w,d,l,gf,ga,pts,played } }
+  for (const m of MATCHES) {
+    const grp = m[1];
+    if (!GROUP_LETTERS.includes(grp)) continue;
+    if (!groups[grp]) groups[grp] = {};
+    for (const team of [m[2], m[3]]) {
+      if (isTBD(team)) continue;          // skip placeholder teams (R32+)
+      if (!groups[grp][team]) {
+        groups[grp][team] = { p:0, w:0, d:0, l:0, gf:0, ga:0, pts:0 };
+      }
+    }
+  }
+
+  // Tally each finished group match
+  for (const m of MATCHES) {
+    const [no, grp, home, away, utc] = m;
+    if (!GROUP_LETTERS.includes(grp)) continue;
+    if (isTBD(home) || isTBD(away)) continue;
+    const k = matchKey(home, away, utc);
+    const api = apiData[k];
+    let hScore, aScore, finished;
+    if (api && (api.homeScore !== null) && (api.awayScore !== null) && (api.apiStatus === 'FINISHED')) {
+      hScore = api.homeScore; aScore = api.awayScore; finished = true;
+    } else if (api && api.apiStatus === 'FINISHED') {
+      hScore = api.homeScore ?? 0; aScore = api.awayScore ?? 0; finished = true;
+    } else if (!api && isPast(utc)) {
+      // Time-based fallback: a match more than 2h past with no Gist data — count as 0-0 to surface teams in the table
+      hScore = 0; aScore = 0; finished = true;
+    } else {
+      continue;
+    }
+    if (!finished) continue;
+    const H = groups[grp][home], A = groups[grp][away];
+    if (!H || !A) continue;
+    H.p++; A.p++;
+    H.gf += hScore; H.ga += aScore; A.gf += aScore; A.ga += hScore;
+    if (hScore > aScore)      { H.w++; H.pts += 3; A.l++; }
+    else if (hScore < aScore) { A.w++; A.pts += 3; H.l++; }
+    else                      { H.d++; A.d++; H.pts += 1; A.pts += 1; }
+  }
+
+  // Sort each group: Pts desc, GD desc, GF desc, name asc
+  for (const grp of Object.keys(groups)) {
+    const rows = Object.entries(groups[grp]).map(([team, s]) => ({
+      team, ...s, gd: s.gf - s.ga,
+    }));
+    rows.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.team.localeCompare(b.team));
+    groups[grp] = rows;
+  }
+  return groups;
+}
+
+function buildStandingsHTML(groups) {
+  const letters = GROUP_LETTERS.filter(g => groups[g] && groups[g].length);
+  if (!letters.length) {
+    return '<div class="standings-empty">No group matches scheduled.</div>';
+  }
+  return letters.map(grp => {
+    const rows = groups[grp];
+    return `
+      <div class="group-card">
+        <div class="gc-head">
+          <span class="gc-title">Group ${grp}</span>
+          <span class="gc-meta">${rows.length} teams</span>
+        </div>
+        <table class="standings-table">
+          <thead>
+            <tr>
+              <th class="pos">#</th>
+              <th class="team">Team</th>
+              <th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th class="pts">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r, i) => `
+              <tr class="${i < 2 ? 'qualify' : ''}">
+                <td class="pos">${i + 1}</td>
+                <td class="team">${getFlagImg(r.team, 18)} <strong>${r.team}</strong></td>
+                <td>${r.p}</td>
+                <td>${r.w}</td>
+                <td>${r.d}</td>
+                <td>${r.l}</td>
+                <td>${r.gf}</td>
+                <td>${r.ga}</td>
+                <td>${r.gd > 0 ? '+' + r.gd : r.gd}</td>
+                <td class="pts">${r.pts}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderStandings() {
+  const grid = document.getElementById('standings-grid');
+  if (!grid) return;
+  grid.innerHTML = buildStandingsHTML(computeStandings());
 }
 
 async function voteMatch(key, choice, matchNo, home, away) {
@@ -1686,6 +1855,7 @@ setInterval(updateClock, 1000);
 // Start API: fetch then schedule smart refresh
 fetchScores().then(() => {
   buildSchedule();
+  renderStandings();
   scheduleRefresh();
 });
 
