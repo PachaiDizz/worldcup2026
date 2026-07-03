@@ -143,6 +143,7 @@
     .team-score { color: var(--gold); font-weight: 700; }
     .vs-block { text-align: center; flex-shrink: 0; }
     .vs { font-family: 'Oswald', sans-serif; font-size: 13px; color: var(--muted); }
+    .pen-score { font-size: 10px; color: var(--gold); text-align: center; margin-top: 2px; font-weight: 600; }
 
     /* ── SCORE DISPLAY ── */
     .score-big {
@@ -640,17 +641,17 @@ const MATCHES = [
 [72,"J","Jordan","Argentina","2026-06-28T02:00:00Z","AT&T Stadium, Arlington","group"],
 [73,"R32","South Africa","Canada","2026-06-28T19:00:00Z","SoFi Stadium, Inglewood","r32"],
 [76,"R32","Brazil","Japan","2026-06-29T17:00:00Z","NRG Stadium, Houston","r32"],
-[74,"R32","Germany","Sweden","2026-06-29T20:30:00Z","Gillette Stadium, Foxborough","r32"],
+[74,"R32","Germany","Paraguay","2026-06-29T20:30:00Z","Gillette Stadium, Foxborough","r32"],
 [75,"R32","Netherlands","Morocco","2026-06-30T01:00:00Z","Estadio BBVA, Monterrey","r32"],
 [78,"R32","Ivory Coast","Norway","2026-06-30T17:00:00Z","AT&T Stadium, Arlington","r32"],
-[77,"R32","France","Paraguay","2026-06-30T21:00:00Z","MetLife Stadium, E. Rutherford","r32"],
+[77,"R32","France","Sweden","2026-06-30T21:00:00Z","MetLife Stadium, E. Rutherford","r32"],
 [79,"R32","Mexico","Ecuador","2026-07-01T01:00:00Z","Estadio Azteca, Mexico City","r32"],
 [80,"R32","England","Jamaica","2026-07-01T16:00:00Z","Mercedes-Benz Stadium, Atlanta","r32"],
-[82,"R32","Belgium","Algeria","2026-07-01T20:00:00Z","Lumen Field, Seattle","r32"],
+[82,"R32","Belgium","Senegal","2026-07-01T20:00:00Z","Lumen Field, Seattle","r32"],
 [81,"R32","USA","Bosnia & Herzegovina","2026-07-02T00:00:00Z","Levi's Stadium, Santa Clara","r32"],
 [84,"R32","Spain","Austria","2026-07-02T19:00:00Z","SoFi Stadium, Inglewood","r32"],
 [83,"R32","Portugal","Croatia","2026-07-02T23:00:00Z","BMO Field, Toronto","r32"],
-[85,"R32","Switzerland","Senegal","2026-07-03T03:00:00Z","BC Place, Vancouver","r32"],
+[85,"R32","Switzerland","Algeria","2026-07-03T03:00:00Z","BC Place, Vancouver","r32"],
 [88,"R32","Australia","Egypt","2026-07-03T18:00:00Z","AT&T Stadium, Arlington","r32"],
 [86,"R32","Argentina","Cape Verde","2026-07-03T22:00:00Z","Hard Rock Stadium, Miami","r32"],
 [87,"R32","Colombia","Ghana","2026-07-04T01:30:00Z","Arrowhead Stadium, Kansas City","r32"],
@@ -765,6 +766,8 @@ async function fetchScores() {
         minute:    scoreData.minute ?? null,
         halfHome:  scoreData.halfHome ?? null,
         halfAway:  scoreData.halfAway ?? null,
+        penaltyHome: scoreData.penaltyHome ?? null,
+        penaltyAway: scoreData.penaltyAway ?? null,
       };
     }
 
@@ -1036,6 +1039,7 @@ function buildCard(m) {
     status = api.status; apiSt = api.apiStatus;
     hScore = api.homeScore; aScore = api.awayScore;
     minute = api.minute; halfH = api.halfHome; halfA = api.halfAway;
+    penH = api.penaltyHome; penA = api.penaltyAway;
   } else {
     // time-based fallback when API hasn't loaded or no match found
     if (isLive(utc)) status = 'live';
@@ -1066,7 +1070,11 @@ function buildCard(m) {
     vsHTML = `<div class="vs">HT</div>`;
     if (halfH != null) vsHTML += `<div class="score-ht">${halfH}–${halfA} HT</div>`;
   } else if (fin) {
-    vsHTML = `<div class="vs ft">FT</div>`;
+    if (penH != null) {
+      vsHTML = `<div class="vs ft">FT</div><div class="pen-score">${penH}-${penA} pens</div>`;
+    } else {
+      vsHTML = `<div class="vs ft">FT</div>`;
+    }
   } else if (apiSt === 'EXTRA_TIME') {
     vsHTML = `<div class="vs">ET</div>`;
   } else if (apiSt === 'PENALTY_SHOOTOUT') {
