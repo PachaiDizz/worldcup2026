@@ -1033,7 +1033,7 @@ function buildCard(m) {
   const api   = apiData[k];
   let status  = 'scheduled';
   let hScore  = null, aScore  = null, minute = null;
-  let halfH   = null, halfA   = null, apiSt  = null;
+  let halfH   = null, halfA   = null, apiSt  = null, penH = null, penA = null;
 
   if (api) {
     status = api.status; apiSt = api.apiStatus;
@@ -1042,6 +1042,7 @@ function buildCard(m) {
     penH = api.penaltyHome; penA = api.penaltyAway;
   } else {
     // time-based fallback when API hasn't loaded or no match found
+    penH = null; penA = null;
     if (isLive(utc)) status = 'live';
     else if (past)   status = 'finished';
   }
