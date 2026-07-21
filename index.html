@@ -338,9 +338,9 @@
 
 <!-- HEADER -->
 <header>
-  <div class="hero-tag">LIVE Scores · Malaysia Time (MYT)</div>
+  <div class="hero-tag" style="background:linear-gradient(135deg,var(--gold),#e6a800);animation:champ-pulse 2s ease-in-out infinite;">🏆 SPAIN — 2026 WORLD CHAMPIONS 🏆</div>
   <h1>FIFA World Cup <span>2026™</span></h1>
-  <p class="hero-sub">All 104 Matches · Group Stage to Final · Times in MYT (UTC+8)</p>
+  <p class="hero-sub">🏆 Spain 1-0 Argentina (AET) · July 19, 2026 · MetLife Stadium</p>
   <div class="hero-meta">
     <div class="meta-pill">🏟 <strong>16</strong> Stadiums</div>
     <div class="meta-pill">🌍 <strong>48</strong> Teams</div>
@@ -409,24 +409,123 @@
   <button class="tab-btn" role="tab" data-tab="standings" aria-selected="false">📊 Group Standings</button>
 </div>
 
-<!-- CHAMPION VOTE -->
-<div class="champ-section" id="champ-section">
-  <div class="champ-inner">
-    <div class="champ-title">🏆 Who Will Win the World Cup 2026?</div>
-    <div class="champ-grid" id="champ-grid">
-      <div class="sk-grid" id="champ-sk-grid">
-        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
-        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
-        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
-        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
-        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
-        <div class="sk-card" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px"><span class="sk-flag"></span><span class="sk-line w60 h12"></span><span class="sk-line w40 h12"></span></div>
-      </div>
+<!-- CHAMPION CELEBRATION -->
+<div class="champion-celebration" id="champion-celebration">
+  <div class="confetti-container" id="confetti-container"></div>
+  <div class="champion-inner">
+    <div class="champion-trophy">🏆</div>
+    <div class="champion-label">2026 WORLD CHAMPIONS</div>
+    <div class="champion-flag">🇪🇸</div>
+    <div class="champion-name">SPAIN</div>
+    <div class="champion-score">1 - 0 <span class="champion-aet">(AET)</span></div>
+    <div class="champion-runnerup">vs Argentina</div>
+    <div class="champion-date">July 19, 2026 · MetLife Stadium, New Jersey</div>
+    <div class="champion-replay">
+      <a href="https://www.youtube.com/results?search_query=spain+argentina+world+cup+2026+final" target="_blank" class="champion-btn">🎬 Watch Highlights</a>
     </div>
-    <div class="pagination" id="champ-pagination"></div>
-    <div class="champ-rank" id="champ-rank"></div>
   </div>
 </div>
+
+<style>
+/* ── CHAMPION CELEBRATION ── */
+.champion-celebration {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #0f1d3a 0%, #1a0f2e 40%, #0f1d3a 80%);
+  border-bottom: 3px solid var(--gold);
+  padding: 50px 20px 40px;
+  text-align: center;
+}
+.champion-celebration::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(245,197,24,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.champion-inner { position: relative; z-index: 2; max-width: 700px; margin: 0 auto; }
+.champion-trophy { font-size: 72px; animation: trophy-bounce 2s ease-in-out infinite; display: block; }
+.champion-label { font-family: 'Oswald', sans-serif; font-size: 14px; letter-spacing: 6px; color: var(--gold); margin-top: 10px; text-transform: uppercase; }
+.champion-flag { font-size: 80px; display: block; margin: 12px 0 8px; filter: drop-shadow(0 0 30px rgba(245,197,24,0.4)); }
+.champion-name { font-family: 'Oswald', sans-serif; font-size: clamp(40px, 8vw, 72px); font-weight: 700; color: #fff; letter-spacing: 4px; text-shadow: 0 0 40px rgba(245,197,24,0.3); line-height: 1; }
+.champion-name::after { content: '👑'; font-size: 32px; display: block; margin-top: 4px; }
+.champion-score { font-family: 'Oswald', sans-serif; font-size: 28px; color: var(--gold); margin-top: 8px; font-weight: 600; }
+.champion-aet { font-size: 14px; color: var(--muted); font-family: 'Inter', sans-serif; }
+.champion-runnerup { font-size: 15px; color: var(--subtext); margin-top: 4px; }
+.champion-date { font-size: 12px; color: var(--muted); margin-top: 10px; }
+.champion-btn {
+  display: inline-block;
+  margin-top: 16px;
+  background: var(--gold);
+  color: #000;
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  padding: 10px 24px;
+  border-radius: 6px;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: transform .2s, box-shadow .2s;
+}
+.champion-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(245,197,24,0.4); }
+
+@keyframes trophy-bounce {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-12px) rotate(3deg); }
+}
+
+/* ── CONFETTI ── */
+.confetti-container { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+.confetti-piece {
+  position: absolute;
+  width: 10px; height: 10px;
+  top: -10px;
+  animation: confetti-fall linear forwards;
+  opacity: 0.85;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0.9; }
+  100% { transform: translateY(calc(100vh + 20px)) rotate(720deg); opacity: 0; }
+}
+
+/* ── CHAMPION HERO OVERRIDE ── */
+.champion-hero-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, var(--gold), #e6a800);
+  color: #000; font-family: 'Oswald', sans-serif;
+  font-size: 12px; font-weight: 700; letter-spacing: 2px;
+  padding: 6px 16px; border-radius: 4px; margin-bottom: 12px;
+  text-transform: uppercase;
+  animation: champ-pulse 2s ease-in-out infinite;
+}
+@keyframes champ-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,197,24,0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(245,197,24,0); }
+}
+</style>
+
+<script>
+// Generate confetti
+(function() {
+  const container = document.getElementById('confetti-container');
+  if (!container) return;
+  const colors = ['#f5c518','#ef4444','#22c55e','#3b82f6','#a855f7','#ec4899','#f97316','#06b6d4'];
+  const shapes = ['●','■','▲','★','♦','♥'];
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.textContent = shapes[Math.floor(Math.random() * shapes.length)];
+    el.style.left = Math.random() * 100 + '%';
+    el.style.color = colors[Math.floor(Math.random() * colors.length)];
+    el.style.fontSize = (6 + Math.random() * 10) + 'px';
+    el.style.animationDuration = (2.5 + Math.random() * 4) + 's';
+    el.style.animationDelay = Math.random() * 3 + 's';
+    el.style.transform = 'rotate(' + Math.random() * 360 + 'deg)';
+    container.appendChild(el);
+  }
+})();
+</script>
 
 <div id="schedule-pane" class="tab-pane">
 <main id="schedule-root">
@@ -669,8 +768,8 @@ const MATCHES = [
   [100,"QF","Argentina","Switzerland","2026-07-12T01:00:00Z","Arrowhead Stadium, Kansas City","qf"],
 [101,"SF","France","Spain","2026-07-14T19:00:00Z","AT&T Stadium, Arlington","sf"],
   [102,"SF","England","Argentina","2026-07-15T19:00:00Z","Mercedes-Benz Stadium, Atlanta","sf"],
-[103,"3RD","Loser SF1","Loser SF2","2026-07-18T21:00:00Z","Hard Rock Stadium, Miami","final"],
-[104,"FINAL","TBD","TBD","2026-07-19T19:00:00Z","MetLife Stadium, E. Rutherford","final"],
+[103,"3RD","France","England","2026-07-18T21:00:00Z","Hard Rock Stadium, Miami","final"],
+[104,"FINAL","Spain","Argentina","2026-07-19T19:00:00Z","MetLife Stadium, E. Rutherford","final"],
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
